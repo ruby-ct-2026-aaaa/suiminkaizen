@@ -95,7 +95,7 @@ module Suiminkaizen
     end
 
     # --- 24時間時計 -------------------------------------------------------
-    # 1日は 08:00 に始まり、6枠を消化して 23:00 に終わる。
+    # 1日は 00:30 に始まり、6枠を消化して 00:00 に終わる。
     # 枠が進むほど時計も進むので、「やらない」を選ぶと時間だけが飛んでいく。
 
     def clock_minutes
@@ -108,7 +108,7 @@ module Suiminkaizen
       Config.format_clock(clock_minutes)
     end
 
-    # 就寝中だけは 23:00 から 23:30 へ、別枠で進める。
+    # 就寝中だけは 00:00 から 00:30 へ、別枠で進める。
     def sleep_clock_text(progress)
       Config.format_clock(Config.clock_minutes(Config::GAMES_PER_DAY) +
                           Config::SLEEP_RECOVERY * progress)

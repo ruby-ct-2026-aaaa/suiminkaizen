@@ -49,29 +49,30 @@ describe GameState do
   end
 
   describe "24時間時計" do
-    it "1日は 08:00 にはじまる" do
-      _(@state.clock_text).must_equal "08:00"
+    it "1日は 00:30 にはじまる" do
+      _(@state.clock_text).must_equal "00:30"
     end
 
     it "枠が進むと時計も進む" do
       @state.advance_slot!
       @state.advance_slot!
-      _(@state.clock_text).must_equal "13:00"
+      _(@state.clock_text).must_equal "08:20"
     end
 
     it "枠の途中でも針が進む" do
       @state.slot_fraction = 0.5
-      _(@state.clock_text).must_equal "09:15"
+      _(@state.clock_text).must_equal "02:28"
     end
 
-    it "6枠すべて終えると 23:00 になる" do
+    it "6枠すべて終えると 00:00 になる" do
       Config::GAMES_PER_DAY.times { @state.advance_slot! }
-      _(@state.clock_text).must_equal "23:00"
+      _(@state.clock_text).must_equal "00:00"
     end
 
-    it "30分の睡眠で 23:30 になる" do
-      _(@state.sleep_clock_text(0.0)).must_equal "23:00"
-      _(@state.sleep_clock_text(1.0)).must_equal "23:30"
+    it "就寝は 00:00 からで、30分眠ると 00:30 ＝ 翌日の始まりに戻る" do
+      _(@state.sleep_clock_text(0.0)).must_equal "00:00"
+      _(@state.sleep_clock_text(1.0)).must_equal "00:30"
+      _(@state.sleep_clock_text(1.0)).must_equal Config.format_clock(Config::DAY_START_MINUTES)
     end
   end
 
@@ -117,7 +118,7 @@ describe GameState do
       _(@state.day).must_equal 2
       _(@state.slot).must_equal 0
       _(@state.day_results).must_be_empty
-      _(@state.clock_text).must_equal "08:00"
+      _(@state.clock_text).must_equal "00:30"
     end
 
     it "7日目が最終日" do

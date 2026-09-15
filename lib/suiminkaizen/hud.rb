@@ -26,7 +26,7 @@ module Suiminkaizen
       draw_labels(state)
     end
 
-    # 24時間表記のデジタル時計。1日は 08:00 に始まり 23:00 に終わる。
+    # 24時間表記のデジタル時計。1日は 00:30 に始まり 00:00 に終わる。
     def draw_clock(state, time, text = nil)
       x = Config::W / 2
       Px.rect(x - CLOCK_W / 2, 1, CLOCK_W, CLOCK_H, Palette.rgb(0x0d1a12), Z_HUD)
