@@ -34,8 +34,16 @@ if not defined RUBY (
 )
 
 if not defined RUBY (
-  echo [エラー] Ruby が見つかりませんでした。
-  echo          https://rubyinstaller.org/ からインストールしてください。
+  echo [1/2] Ruby が見つかりませんでした。
+  echo.
+  echo   このゲームを動かすには Ruby が必要です。
+  echo.
+  echo   1. https://rubyinstaller.org/downloads/ を開く
+  echo   2. "Ruby+Devkit" と書かれた x64 版をダウンロードする
+  echo      ^(Devkit なしの版だと次の手順で必ず失敗します^)
+  echo   3. インストール中の "Add Ruby to PATH" にチェックを入れる
+  echo   4. 最後に出る黒い画面で Enter を押し、MSYS2 の導入まで終わらせる
+  echo   5. パソコンを再起動してから、もう一度このファイルを押す
   echo.
   pause
   exit /b 1
@@ -46,20 +54,40 @@ echo 使用する Ruby : %RUBY%
 rem --- make sure gosu is available --------------------------------
 "%RUBY%" -e "require 'gosu'" >nul 2>&1
 if errorlevel 1 (
-  echo gosu が見つからないのでインストールします...
+  echo.
+  echo [2/2] 描画ライブラリ gosu が入っていないので、これから導入します。
+  echo       初回だけビルドが走るため 3～10 分ほどかかります。
+  echo       このウィンドウを閉じずに、そのままお待ちください。
+  echo.
   "%RUBY%" -S gem install gosu --no-document
   "%RUBY%" -e "require 'gosu'" >nul 2>&1
   if errorlevel 1 (
     echo.
     echo [エラー] gosu を用意できませんでした。
-    echo          コマンドプロンプトで gem install gosu を試してください。
+    echo.
+    echo   gosu は Windows 用のビルド済みパッケージが配布されておらず、
+    echo   コンパイル環境 ^(MSYS2 Devkit^) がないと導入できません。
+    echo.
+    echo   対処: コマンドプロンプトを開いて次を実行してください。
+    echo.
+    echo       ridk install
+    echo.
+    echo   選択肢が出たら 3 を入力して Enter。終わったらこのファイルを
+    echo   もう一度押してください。
+    echo.
+    echo   ridk が見つからない場合は、Devkit なしの Ruby が入っています。
+    echo   https://rubyinstaller.org/downloads/ から "Ruby+Devkit" を
+    echo   入れ直してください。
     echo.
     pause
     exit /b 1
   )
+  echo.
+  echo gosu の導入が完了しました。
 )
 
 rem --- run --------------------------------------------------------
+echo.
 echo 起動します。この黒いウィンドウは閉じずにそのままにしてください。
 echo.
 "%RUBY%" main.rb

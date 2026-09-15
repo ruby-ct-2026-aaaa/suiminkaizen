@@ -35,6 +35,27 @@ C:\Ruby40-x64\bin\ruby.exe main.rb
 必要なのは Ruby と gosu だけ。画像・音声のファイルは一切なく、ドット絵はすべて
 ソースコード中の文字列から生成している。
 
+### 他の人に遊んでもらうには
+
+`start_game.bat` は **Ruby さえ入っていれば** 残りを面倒みるが、Ruby そのものは
+入れてもらう必要がある。gosu は Windows 用のビルド済みパッケージが配布されておらず、
+導入時にコンパイルが走るため、**Devkit 付きの Ruby** が要る点に注意。
+
+遊ぶ側の手順:
+
+1. https://rubyinstaller.org/downloads/ から **「Ruby+Devkit」** の x64 版を入れる
+   （"Add Ruby to PATH" にチェック、最後の黒い画面で MSYS2 の導入まで済ませる）
+2. このリポジトリを clone、または Code → Download ZIP で展開する
+3. `start_game.bat` をダブルクリック
+   （初回だけ gosu のビルドで 3〜10 分かかる）
+
+1 を飛ばした場合や Devkit なしの Ruby だった場合は、`start_game.bat` が
+何をすればよいか画面に出すようにしてある。
+
+macOS / Linux では `.bat` は使えないので、SDL2 などを入れたうえで
+`gem install gosu && ruby main.rb` を実行する。
+詳細は [Gosu の Getting Started](https://github.com/gosu/gosu/wiki) を参照。
+
 ## 操作
 
 | キー | 働き |
