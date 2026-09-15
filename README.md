@@ -35,22 +35,43 @@ C:\Ruby40-x64\bin\ruby.exe main.rb
 必要なのは Ruby と gosu だけ。画像・音声のファイルは一切なく、ドット絵はすべて
 ソースコード中の文字列から生成している。
 
-### 他の人に遊んでもらうには
+### 他の人に遊んでもらうには（Ruby 同梱の配布パッケージ）
 
-`start_game.bat` は **Ruby さえ入っていれば** 残りを面倒みるが、Ruby そのものは
-入れてもらう必要がある。gosu は Windows 用のビルド済みパッケージが配布されておらず、
-導入時にコンパイルが走るため、**Devkit 付きの Ruby** が要る点に注意。
+gosu は Windows 用のビルド済みパッケージが配布されておらず、導入時に必ず
+コンパイルが走る。つまり素のリポジトリを渡すと、相手に **Devkit 付きの Ruby** を
+入れてもらうところから始まってしまう。
 
-遊ぶ側の手順:
+そこで、Ruby ごと同梱した ZIP を作れるようにしてある。
+
+```bash
+ruby tools/build_windows_package.rb
+powershell Compress-Archive -Path tmp/dist/suiminkaizen -DestinationPath tmp/dist/suiminkaizen_windows.zip -Force
+```
+
+できあがる ZIP は **17 MB 前後**（展開後 53 MB）。相手は解凍して
+`start_game.bat` を押すだけで、**何もインストールせずに**遊べる。
+
+同梱するもの／しないもの:
+
+| | |
+| --- | --- |
+| 入れる | Ruby 本体（bin + 標準ライブラリ）、gosu、SDL2.dll、libgcc / libwinpthread |
+| 外す | MSYS2 のツールチェーン（約900MB）、ドキュメント（約214MB）、gem のキャッシュ、gosu のビルド材料 |
+
+`libgcc_s_seh-1.dll` と `libwinpthread-1.dll` は `gosu.so` が直接要求するため、
+MSYS2 を外す以上は個別に同梱しないと **起動しない**。ビルドスクリプトは最後に
+「MSYS2 が見えない状態で gosu を読み込めるか」まで確認するので、
+同梱漏れがあればその場で失敗する。
+
+### Ruby を入れてもらう場合（リポジトリをそのまま渡すとき）
 
 1. https://rubyinstaller.org/downloads/ から **「Ruby+Devkit」** の x64 版を入れる
    （"Add Ruby to PATH" にチェック、最後の黒い画面で MSYS2 の導入まで済ませる）
-2. このリポジトリを clone、または Code → Download ZIP で展開する
-3. `start_game.bat` をダブルクリック
-   （初回だけ gosu のビルドで 3〜10 分かかる）
+2. clone、または Code → Download ZIP で展開する
+3. `start_game.bat` をダブルクリック（初回だけ gosu のビルドで 3〜10 分）
 
-1 を飛ばした場合や Devkit なしの Ruby だった場合は、`start_game.bat` が
-何をすればよいか画面に出すようにしてある。
+Ruby がない場合や Devkit なしだった場合は、`start_game.bat` が
+何をすればよいか画面に出す。
 
 macOS / Linux では `.bat` は使えないので、SDL2 などを入れたうえで
 `gem install gosu && ruby main.rb` を実行する。
@@ -151,6 +172,7 @@ ruby tools/render.rb        # 各画面を PNG に書き出す（ソフトウェ
 ruby tools/sprite_sheet.rb  # ドット絵を並べて確認
 ruby tools/real_shots.rb    # 本物の Gosu でオフスクリーン描画して PNG 保存
 ruby tools/gosu_check.rb    # 実機でウィンドウを開いて数秒動かす起動確認
+ruby tools/build_windows_package.rb  # Ruby 同梱の配布パッケージを組み立てる
 ```
 
 `tools/smoke.rb` の出力例:
