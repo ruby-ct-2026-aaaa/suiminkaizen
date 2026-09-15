@@ -1,9 +1,16 @@
 # frozen_string_literal: true
 
 module Suiminkaizen
-  # フォントの読み込み。日本語が出せる書体を順に試し、
-  # どれも駄目ならGosuの既定フォントへ落とす。
+  # フォントと、峰小輔の立ち絵の読み込み。
+  #
+  # 立ち絵は 4 種類あり、場面によって使い分ける。
+  #   normal  ふだんの峰小輔（タイトル・1日の導入・説明画面）
+  #   success ミニゲームで A 以上を出したとき
+  #   fail    ミニゲームで C 以下だったとき、そして気絶したとき
+  #   sleep   1日の終わりの30分睡眠
   module Assets
+    ROOT = File.expand_path("../../assets", __dir__)
+
     CANDIDATES = [
       "C:/Windows/Fonts/meiryo.ttc",
       "C:/Windows/Fonts/YuGothM.ttc",
@@ -19,15 +26,19 @@ module Suiminkaizen
       "Noto Sans CJK JP"
     ].freeze
 
+    PORTRAITS = %i[normal success fail sleep].freeze
+
     module_function
+
+    # --- フォント ---------------------------------------------------------
+    # サイズは Config::REFERENCE_SCALE のときの実画面ピクセル。
+    # ウィンドウを伸縮しても見た目が変わらないよう、Px が比率をかけて描く。
 
     def font(size)
       @fonts ||= {}
       @fonts[size] ||= build_font(size)
     end
 
-    # サイズは実画面ピクセル。論理解像度 320x240 を SCALE(=3) 倍しているので、
-    # tiny=20px はドット絵換算で 7 ドットぶんの高さにあたる。
     def tiny   = font(20)
     def small  = font(25)
     def normal = font(30)
@@ -48,6 +59,31 @@ module Suiminkaizen
 
     def available
       @available ||= CANDIDATES.select { |name| !name.include?("/") || File.exist?(name) }
+    end
+
+    # --- 立ち絵 -----------------------------------------------------------
+    # ウィンドウ（＝OpenGL のコンテキスト）が出来てからでないと読めないので、
+    # 最初に必要になった時点で読み込む。
+
+    def portrait(name)
+      @portraits ||= {}
+      return @portraits[name] if @portraits.key?(name)
+
+      @portraits[name] = ImageSprite.load(File.join(ROOT, "kosuke", "#{name}.png"))
+    end
+
+    # ミニゲームの成績に応じた表情を選ぶ。
+    #   A 以上 → success / C 以下 → fail / それ以外 → normal
+    def portrait_for_rank(rank)
+      case rank
+      when "S", "A" then portrait(:success) || portrait(:normal)
+      when "C", "D" then portrait(:fail) || portrait(:normal)
+      else portrait(:normal)
+      end
+    end
+
+    def portraits_available?
+      PORTRAITS.all? { |name| portrait(name) }
     end
   end
 end

@@ -68,6 +68,8 @@ module Suiminkaizen
     TAN        = rgb(0xbb8a55)
 
     TRANSPARENT = Gosu::Color.new(0, 0, 0, 0)
+    # 画像を色で染めずにそのまま描くための白。
+    FULL        = Gosu::Color.new(255, 255, 255, 255)
 
     # 睡眠ゲージの色。健康(緑)→注意(黄)→危険(橙)→限界(赤)。
     def gauge_color(ratio)
