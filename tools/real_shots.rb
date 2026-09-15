@@ -15,14 +15,18 @@ module Suiminkaizen
   # 決められた場面まで進めては1枚撮る、撮影専用のウィンドウ。
   class ShotWindow < Window
     PLAN = [
-      ["01_title",      20, 0,   ->(_w) {}],
-      ["02_day_intro",  20, 0,   ->(w) { w.goto(Scenes::DayIntro.new(w, w.state)) }],
-      ["03_muscle",    120, 180, ->(w) { w.goto(Minigames::Muscle.new(w, w.state)) }],
-      ["04_bath",      180, 420, ->(w) { w.goto(Minigames::Bath.new(w, w.state)) }],
-      ["05_supplement", 140, 300, ->(w) { w.goto(Minigames::Supplement.new(w, w.state)) }],
-      ["06_sleep",      60, 500, ->(w) { w.goto(Scenes::Sleep.new(w, w.state)) }],
-      ["07_game_over",  30, 999, ->(w) { w.goto(Scenes::GameOver.new(w, w.state)) }],
-      ["08_ending",     40, 120, ->(w) { w.goto(Scenes::Ending.new(w, w.state)) }]
+      ["01_title",       20, 0,   ->(_w) {}],
+      ["02_day_intro",   20, 0,   ->(w) { w.goto(Scenes::DayIntro.new(w, w.state)) }],
+      ["03_intro",       40, 120, lambda { |w|
+        w.goto(Scenes::MinigameIntro.new(w, w.state, :supplement))
+      }],
+      ["04_muscle",     120, 180, ->(w) { w.goto(Minigames::Muscle.new(w, w.state)) }],
+      ["05_bath",       180, 420, ->(w) { w.goto(Minigames::Bath.new(w, w.state)) }],
+      ["06_supplement", 140, 300, ->(w) { w.goto(Minigames::Supplement.new(w, w.state)) }],
+      ["07_massage",    200, 260, ->(w) { w.goto(Minigames::HeadMassage.new(w, w.state)) }],
+      ["08_sleep",       40, 500, ->(w) { w.goto(Scenes::Sleep.new(w, w.state)) }],
+      ["09_game_over",   30, 999, ->(w) { w.goto(Scenes::GameOver.new(w, w.state)) }],
+      ["10_ending",      40, 120, ->(w) { w.goto(Scenes::Ending.new(w, w.state)) }]
     ].freeze
 
     def initialize
@@ -48,7 +52,7 @@ module Suiminkaizen
 
       @capture = false
       name = PLAN[@index][0]
-      image = Gosu.render(Config::W * Config::SCALE, Config::H * Config::SCALE) do
+      image = Gosu.render(width, height) do
         scene.draw
       end
       path = File.join(OUT, "#{name}.png")

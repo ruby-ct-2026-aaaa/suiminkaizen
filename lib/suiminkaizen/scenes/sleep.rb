@@ -5,13 +5,13 @@ module Suiminkaizen
     # 1日の終わりに許された 30分の睡眠。
     # たった 30 しか減らないという事実を、時計の針でたっぷり見せる。
     class Sleep < Scene
-      FALL  = 1.2  # まぶたが落ちるまで
-      DOZE  = 3.4  # 眠っている時間
-      WAKE  = 1.5  # 目覚ましが鳴ってから
+      FALL  = 0.8 # まぶたが落ちるまで
+      DOZE  = 2.2 # 眠っている時間
+      WAKE  = 1.0 # 目覚ましが鳴ってから
       TOTAL = FALL + DOZE + WAKE
 
-      CLOCK_X = 236
-      CLOCK_Y = 84
+      CLOCK_X = 240
+      CLOCK_Y = 96
       CLOCK_R = 26
 
       def initialize(window, state)
@@ -38,10 +38,9 @@ module Suiminkaizen
 
       def draw
         Stage.draw(@camera, :bedroom, elapsed)
-        Sprites::KOSUKE_SLEEP.draw3d(@camera, -1.35, Stage::FLOOR_Y - 0.53, 4.4, 1.05,
-                                     fog: Stage.fog(:bedroom))
-
+        draw_kosuke
         darken
+        Hud.draw_clock(state, elapsed, state.sleep_clock_text(progress))
         draw_clock
         draw_zzz if phase == :doze
         draw_gauge
@@ -58,16 +57,27 @@ module Suiminkaizen
         :wake
       end
 
+      def draw_kosuke
+        sprite = Assets.portrait(:sleep)
+        if sprite
+          sprite.draw3d(@camera, -1.2, Stage::FLOOR_Y - 0.5, 4.2, 0.72,
+                        fog: Stage.fog(:bedroom))
+        else
+          Sprites::KOSUKE_SLEEP.draw3d(@camera, -1.35, Stage::FLOOR_Y - 0.53, 4.4, 1.05,
+                                       fog: Stage.fog(:bedroom))
+        end
+      end
+
       # 眠りに落ちるほど画面が暗くなり、目覚ましで一気に戻る。
       def darken
         level =
           case phase
           when :fall then elapsed / FALL
           when :doze then 1.0
-          else [1.0 - (elapsed - FALL - DOZE) / 0.5, 0.0].max
+          else [1.0 - (elapsed - FALL - DOZE) / 0.4, 0.0].max
           end
         Px.rect(0, 0, Config::W, Config::H,
-                Palette.alpha(Palette::INK, (level * 178).round), 100)
+                Palette.alpha(Palette::INK, (level * 168).round), 100)
       end
 
       # 睡眠の進み具合（0.0 .. 1.0）
@@ -78,7 +88,7 @@ module Suiminkaizen
       end
 
       def draw_clock
-        minutes = 30.0 * progress
+        minutes = Config::SLEEP_RECOVERY * progress
         Px.circle(CLOCK_X, CLOCK_Y, CLOCK_R + 2, Palette::INK, 110, 2)
         Px.circle(CLOCK_X, CLOCK_Y, CLOCK_R, Palette::BONE, 111)
         (0...12).each do |i|
@@ -88,43 +98,41 @@ module Suiminkaizen
         end
 
         minute_angle = Math::PI * 2 * (minutes / 60.0) - Math::PI / 2
-        hour_angle   = Math::PI * 2 * ((3.0 + minutes / 60.0) / 12.0) - Math::PI / 2
+        hour_angle   = Math::PI * 2 * ((11.0 + minutes / 60.0) / 12.0) - Math::PI / 2
         Px.ray(CLOCK_X, CLOCK_Y, hour_angle, CLOCK_R * 0.5, Palette::WHITE, 112, 2)
         Px.ray(CLOCK_X, CLOCK_Y, minute_angle, CLOCK_R * 0.82, Palette::RED, 113, 1)
         Px.rect(CLOCK_X - 1, CLOCK_Y - 1, 3, 3, Palette::WHITE, 114)
 
-        Px.text_shadow(Assets.tiny,
-                       format("AM 3:%02d", minutes.round),
+        Px.text_shadow(Assets.tiny, "#{minutes.round}分経過",
                        CLOCK_X, CLOCK_Y + CLOCK_R + 8, Palette::BONE, 114,
                        align: :center)
       end
 
       def draw_zzz
         4.times do |i|
-          cycle = (elapsed * 0.7 + i * 0.5) % 2.0
+          cycle = (elapsed * 0.9 + i * 0.5) % 2.0
           alpha = (200 * (1.0 - cycle / 2.0)).round
-          size  = 1.0 + cycle * 0.5
-          Px.text_shadow(Assets.small, "Z", 106 + i * 11, 112 - cycle * 26,
+          Px.text_shadow(Assets.small, "Z", 96 + i * 11, 116 - cycle * 26,
                          Palette.alpha(Palette::AQUA, alpha), 115,
-                         scale: size)
+                         scale: 1.0 + cycle * 0.5)
         end
       end
 
       def draw_gauge
         shown = @before - @recovered * progress
 
-        Px.rect(40, 168, 240, 34, Palette.alpha(Palette::INK, 210), 110)
-        Px.frame(40, 168, 240, 34, Palette::VIOLET, 111)
-        Px.text_shadow(Assets.tiny, "睡眠ゲージ", 48, 172, Palette::BONE, 112)
-        Px.text_shadow(Assets.small, "#{shown.round}", 152, 170,
+        Px.rect(30, 172, 260, 34, Palette.alpha(Palette::INK, 215), 110)
+        Px.frame(30, 172, 260, 34, Palette::VIOLET, 111)
+        Px.text_shadow(Assets.tiny, "睡眠ゲージ", 38, 176, Palette::BONE, 112)
+        Px.text_shadow(Assets.small, shown.round.to_s, 160, 174,
                        Palette.gauge_color(shown / Config::MAX_GAUGE), 112,
                        align: :right)
-        Px.text_shadow(Assets.tiny, "-#{(@recovered * progress).round}", 272, 172,
+        Px.text_shadow(Assets.tiny, "-#{(@recovered * progress).round}", 282, 176,
                        Palette::CYAN, 112, align: :right)
 
         ratio = shown / Config::MAX_GAUGE
-        Px.rect(48, 188, 224, 7, Palette.rgb(0x241f42), 112)
-        Px.rect(48, 188, (224 * ratio).round, 7, Palette.gauge_color(ratio), 113)
+        Px.rect(38, 192, 244, 7, Palette.rgb(0x241f42), 112)
+        Px.rect(38, 192, (244 * ratio).round, 7, Palette.gauge_color(ratio), 113)
       end
 
       def draw_caption
@@ -134,19 +142,18 @@ module Suiminkaizen
           when :doze then ["30分だけの睡眠…", Palette::AQUA]
           else [wake_message, Palette::RED]
           end
-        Px.text_shadow(Assets.large, text, Config::W / 2, 34, color, 120, align: :center)
+        Px.text_shadow(Assets.large, text, Config::W / 2, 42, color, 120, align: :center)
 
         return unless phase == :wake
 
-        Px.text_shadow(Assets.tiny, "SPACE ですすむ", Config::W / 2, 214,
+        Px.text_shadow(Assets.tiny, "SPACE ですすむ", Config::W / 2, 216,
                        Palette.alpha(Palette::YELLOW, blinking_alpha), 120, align: :center)
       end
 
       def wake_message
         return "最終日を乗り切った…！" if state.last_day?
 
-        rest = Config::TOTAL_DAYS - state.day
-        "起きろ！ 残り#{rest}日！"
+        "起きろ！ 残り#{Config::TOTAL_DAYS - state.day}日！"
       end
 
       # 目覚ましの点滅。

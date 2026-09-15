@@ -20,7 +20,7 @@ window.state.gauge.add(420)
 window.goto(Minigames::Bath.new(window, window.state))
 180.times { Gosu.fake_ms += 50; window.update }
 
-canvas = Canvas.new(Config::SCREEN_W, Config::SCREEN_H)
+canvas = Canvas.new(window.width, window.height)
 Gosu.canvas = canvas
 window.draw
 Gosu.canvas = nil

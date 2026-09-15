@@ -112,6 +112,18 @@ game = File.join(PKG, "game")
 FileUtils.mkdir_p(game)
 FileUtils.cp(File.join(PROJECT, "main.rb"), game)
 count, bytes = copy_tree(File.join(PROJECT, "lib"), game, PROJECT, filter: false)
+
+# 峰小輔の立ち絵。変換済みの PNG だけを持っていく（元の JPG は不要）。
+portraits = Dir.glob(File.join(PROJECT, "assets", "kosuke", "*.png"))
+abort "立ち絵が見つからない。先に tools/prepare_sprites.rb を実行すること" if portraits.empty?
+
+FileUtils.mkdir_p(File.join(game, "assets", "kosuke"))
+portraits.each do |path|
+  FileUtils.cp(path, File.join(game, "assets", "kosuke"))
+  bytes += File.size(path)
+  count += 1
+end
+
 total += bytes
 puts format("  game/      %5d ファイル  %s", count + 1, mb(bytes))
 
@@ -234,6 +246,13 @@ ok = system(clean_env, bundled, "-e", <<~CHECK)
   puts "  gosu #{'#{Gosu::VERSION}'} を読み込めました"
 CHECK
 abort "同梱した Ruby から gosu を読み込めなかった" unless ok
+
+# 立ち絵が欠けていると、ゲームは動くが峰小輔だけ消える。ここで検算しておく。
+missing = %w[normal success fail sleep].reject do |name|
+  File.exist?(File.join(game, "assets", "kosuke", "#{name}.png"))
+end
+abort "立ち絵が足りない: #{missing.join(', ')}" unless missing.empty?
+puts "  立ち絵 4 種をすべて同梱しました"
 
 puts
 puts "完成: #{PKG}"

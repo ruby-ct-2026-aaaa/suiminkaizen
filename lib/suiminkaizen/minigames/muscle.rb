@@ -21,7 +21,7 @@ module Suiminkaizen
         def title = "深夜の筋トレ"
         def subtitle = "バーベルスクワット"
         def theme = :gym
-        def target_score = 118.0
+        def target_score = 89.0
 
         def controls
           ["SPACE ... バーベルを上げる"]

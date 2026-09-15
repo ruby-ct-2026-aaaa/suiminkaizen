@@ -27,7 +27,7 @@ module Suiminkaizen
         def title = "お風呂"
         def subtitle = "ちょうどいい湯加減をキープ"
         def theme = :bath
-        def target_score = 150.0
+        def target_score = 62.0
 
         def controls
           ["↑ ... 追い焚き（熱くする）", "↓ ... 水を足す（ぬるくする）",

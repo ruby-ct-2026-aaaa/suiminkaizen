@@ -2,12 +2,15 @@
 
 module Suiminkaizen
   module Minigames
-    ALL_KINDS = %i[muscle bath supplement].freeze
+    # プレイヤーが「やる／やらない」を選べる3種目。
+    BASE_KINDS = %i[muscle bath supplement].freeze
+    # ヘッドマッサージ師の乱入を加えた全4種。
+    ALL_KINDS  = (BASE_KINDS + [:massage]).freeze
 
     module_function
 
     def registry
-      { muscle: Muscle, bath: Bath, supplement: Supplement }
+      { muscle: Muscle, bath: Bath, supplement: Supplement, massage: HeadMassage }
     end
 
     def klass(kind)
@@ -75,6 +78,8 @@ module Suiminkaizen
 
         @time_left -= dt
         state.gauge.add(Config.drowsiness_rate(state.day) * dt)
+        # 24時間時計の針は、この枠の進み具合に合わせて進む。
+        state.slot_fraction = 1.0 - @time_left / Config::MINIGAME_SECONDS
 
         step(dt)
         update_popups(dt)
@@ -212,9 +217,9 @@ module Suiminkaizen
 
       def draw_time_bar
         frac = @time_left / Config::MINIGAME_SECONDS
-        Px.rect(0, 26, Config::W, 3, Palette.alpha(Palette::INK, 160), Hud::Z_HUD)
+        Px.rect(0, 33, Config::W, 3, Palette.alpha(Palette::INK, 160), Hud::Z_HUD)
         tone = frac < 0.2 ? Palette::RED : Palette::AQUA
-        Px.rect(0, 26, (Config::W * frac).round, 3, tone, Hud::Z_HUD + 1)
+        Px.rect(0, 33, (Config::W * frac).round, 3, tone, Hud::Z_HUD + 1)
       end
 
       def draw_bottom_panel

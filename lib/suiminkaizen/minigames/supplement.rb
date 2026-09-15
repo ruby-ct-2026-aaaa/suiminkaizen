@@ -6,8 +6,8 @@ module Suiminkaizen
     #
     # 奥からサプリが3レーンに分かれて迫ってくる。
     # 左右キーでコップを構え、手前の判定ゾーンに来た瞬間に SPACE で飲む。
-    # 暖色＝目が覚める良いサプリ、寒色＝眠くなる危険物。
-    # 危険物は飲まずに見送るのが正解で、見送るだけでも少し加点される。
+    # 寒色＝ひんやり目が覚めるサプリ、暖色＝身体が温まって眠くなるもの。
+    # 暖色は飲まずに見送るのが正解で、見送るだけでも少し加点される。
     class Supplement < Base
       LANES   = [-1.45, 0.0, 1.45].freeze
       PILL_Y  = 1.15
@@ -17,21 +17,24 @@ module Suiminkaizen
       CATCH_BEST = 2.05
       GONE_Z  = 1.1
 
+      # 見分けかたは色温度ひとつ。
+      #   寒色＝ひんやり目が覚めるもの → 飲む（睡眠ゲージが減る）
+      #   暖色＝身体が温まって眠くなるもの → 見送る（飲むとゲージが増える）
       TYPES = [
         { name: "カフェイン",   good: true,  shape: :tablet,
-          a: Palette::ORANGE, b: Palette.shade(Palette::ORANGE, 0.6) },
-        { name: "ビタミンB",    good: true,  shape: :capsule,
-          a: Palette::YELLOW, b: Palette::GOLD },
-        { name: "タウリン",     good: true,  shape: :capsule,
-          a: Palette::RED,    b: Palette::CRIMSON },
-        { name: "マカ",         good: true,  shape: :tablet,
-          a: Palette::GREEN,  b: Palette::MOSS },
-        { name: "睡眠薬",       good: false, shape: :capsule,
           a: Palette::BLUE,   b: Palette::DEEP_BLUE },
-        { name: "メラトニン",   good: false, shape: :tablet,
+        { name: "ミント",       good: true,  shape: :tablet,
+          a: Palette::CYAN,   b: Palette.shade(Palette::CYAN, 0.6) },
+        { name: "タウリン",     good: true,  shape: :capsule,
+          a: Palette::AQUA,   b: Palette::CYAN },
+        { name: "エナジー",     good: true,  shape: :capsule,
           a: Palette::LILAC,  b: Palette::VIOLET },
         { name: "ホットミルク", good: false, shape: :tablet,
-          a: Palette::WHITE,  b: Palette::BONE }
+          a: Palette::ORANGE, b: Palette::BROWN },
+        { name: "カモミール",   good: false, shape: :tablet,
+          a: Palette::YELLOW, b: Palette::GOLD },
+        { name: "甘酒",         good: false, shape: :capsule,
+          a: Palette::RED,    b: Palette::CRIMSON }
       ].freeze
 
       GOOD = TYPES.select { |t| t[:good] }.freeze
@@ -40,9 +43,9 @@ module Suiminkaizen
       class << self
         def kind  = :supplement
         def title = "サプリメント"
-        def subtitle = "効くやつだけ飲み込め"
+        def subtitle = "冷たいものだけ飲み込め"
         def theme = :kitchen
-        def target_score = 130.0
+        def target_score = 57.0
 
         def controls
           ["← → ... コップを動かす", "SPACE ... 飲む"]
@@ -51,9 +54,9 @@ module Suiminkaizen
         def rules
           [
             "奥から迫るサプリを、手前の判定ゾーンで SPACE。",
-            "暖色（カフェイン・ビタミン・タウリン・マカ）は飲む。",
-            "寒色（睡眠薬・メラトニン・ホットミルク）は見送る。",
-            "危険物を飲むと大ダメージ。見送れば少し加点。"
+            "寒色（カフェイン・ミント・タウリン・エナジー）は飲む。",
+            "暖色（ホットミルク・カモミール・甘酒）は身体が温まって眠くなる。",
+            "暖色を飲むと大ダメージ。見送れば少し加点。"
           ]
         end
       end
@@ -241,7 +244,7 @@ module Suiminkaizen
       end
 
       def draw_legend
-        Px.text_shadow(Assets.tiny, "暖色＝飲む　寒色＝見送る", Config::W / 2, 44,
+        Px.text_shadow(Assets.tiny, "寒色＝飲む　暖色＝見送る", Config::W / 2, 44,
                        Palette::BONE, 150, align: :center)
       end
     end

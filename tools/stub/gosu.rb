@@ -9,20 +9,25 @@
 module Gosu
   KB_A = 4
   KB_D = 7
+  KB_N = 17
   KB_P = 19
   KB_Q = 20
   KB_R = 21
   KB_S = 22
   KB_T = 23
   KB_W = 26
+  KB_X = 27
   KB_RETURN = 40
   KB_ESCAPE = 41
   KB_SPACE = 44
+  KB_F11 = 68
   KB_RIGHT = 79
   KB_LEFT = 80
   KB_DOWN = 81
   KB_UP = 82
   KB_ENTER = 88
+  KB_LEFT_ALT = 226
+  KB_RIGHT_ALT = 230
 
   class Color
     attr_reader :alpha, :red, :green, :blue
@@ -87,14 +92,66 @@ module Gosu
     end
   end
 
+  # 画像は復号しない。PNG のヘッダから大きさだけ読み、
+  # 描画は「そこに何かが居る」ことが分かる矩形として扱う。
+  class Image
+    attr_reader :width, :height
+
+    def initialize(source, **_opts)
+      if source.is_a?(String) && File.exist?(source)
+        @width, @height = Image.png_size(source)
+      else
+        @width = 64
+        @height = 64
+      end
+    end
+
+    def self.png_size(path)
+      head = File.binread(path, 24).to_s
+      return [64, 64] unless head.bytesize >= 24 && head.byteslice(12, 4) == "IHDR"
+
+      head.byteslice(16, 8).unpack("N2")
+    rescue StandardError
+      [64, 64]
+    end
+
+    def self.from_blob(width, height, _blob = nil, **_opts)
+      image = allocate
+      image.instance_variable_set(:@width, width)
+      image.instance_variable_set(:@height, height)
+      image
+    end
+
+    def to_blob = "\0" * (@width * @height * 4)
+
+    def save(_path) = true
+
+    def draw(x, y, z, scale_x = 1.0, scale_y = 1.0, color = Color::WHITE, _mode = :default)
+      Gosu.note_draw!
+      Gosu.check_numbers!("Image#draw", x, y, z, scale_x, scale_y)
+      raise ArgumentError, "Image#draw: bad color #{color.inspect}" unless color.is_a?(Color)
+
+      Gosu.canvas&.push_rect(x, y, @width * scale_x, @height * scale_y, color, z)
+    end
+  end
+
   class Window
     attr_accessor :caption
     attr_reader :width, :height
 
-    def initialize(width, height, **_opts)
+    def initialize(width, height, **opts)
+      raise ArgumentError, "unknown option" if opts.key?(:not_a_real_option)
+
       @width = width
       @height = height
       @closed = false
+      @fullscreen = opts.fetch(:fullscreen, false)
+    end
+
+    def fullscreen? = @fullscreen
+
+    def fullscreen=(value)
+      @fullscreen = value
     end
 
     def show; end
@@ -126,6 +183,9 @@ module Gosu
     end
 
     def default_font_name = "stub"
+
+    def screen_width  = 1536
+    def screen_height = 864
 
     def note_draw!
       @draw_calls = (@draw_calls || 0) + 1

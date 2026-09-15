@@ -73,6 +73,56 @@ describe Camera do
   end
 end
 
+describe Viewport do
+  after { Viewport.fit!(Config::W * 3, Config::H * 3) }
+
+  it "ウィンドウいっぱいに広げつつ 4:3 を保つ" do
+    Viewport.fit!(1280, 960)
+    _(Viewport.scale).must_be_close_to 4.0
+    _(Viewport.offset_x).must_equal 0
+    _(Viewport.offset_y).must_equal 0
+  end
+
+  it "横長のウィンドウでは左右に黒帯が出る" do
+    Viewport.fit!(1600, 600)
+    _(Viewport.scale).must_be_close_to 2.5
+    _(Viewport.offset_x).must_equal 400
+    _(Viewport.offset_y).must_equal 0
+    _(Viewport.letterbox_bars).wont_be_empty
+  end
+
+  it "縦長のウィンドウでは上下に黒帯が出る" do
+    Viewport.fit!(640, 720)
+    _(Viewport.scale).must_be_close_to 2.0
+    _(Viewport.offset_y).must_equal 120
+    _(Viewport.letterbox_bars).wont_be_empty
+  end
+
+  it "ぴったり 4:3 なら黒帯は出ない" do
+    Viewport.fit!(800, 600)
+    _(Viewport.letterbox_bars).must_be_empty
+  end
+
+  it "論理座標を画面座標へ移す" do
+    Viewport.fit!(1600, 600)
+    _(Viewport.screen_x(0)).must_equal 400
+    _(Viewport.screen_x(Config::W)).must_equal 1200
+    _(Viewport.screen_y(Config::H)).must_equal 600
+  end
+
+  it "極端に小さいウィンドウでも下限を割らない" do
+    Viewport.fit!(10, 10)
+    _(Viewport.scale).must_be :>=, Viewport::MIN_SCALE
+  end
+
+  it "文字は基準倍率との比で拡大される" do
+    Viewport.fit!(Config::W * 3, Config::H * 3)
+    _(Viewport.text_scale).must_be_close_to 1.0
+    Viewport.fit!(Config::W * 6, Config::H * 6)
+    _(Viewport.text_scale).must_be_close_to 2.0
+  end
+end
+
 describe Stage do
   it "部屋はカメラの前に組み立てられている" do
     _(Stage::NEAR_Z).must_be :<, Stage::FAR_Z

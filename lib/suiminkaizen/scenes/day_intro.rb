@@ -2,14 +2,17 @@
 
 module Suiminkaizen
   module Scenes
-    # 1日のはじまり。今日のメニューと、いまの睡眠ゲージを確認する画面。
+    # 1日のはじまり。今日の予定と、いまの睡眠ゲージを確認する画面。
+    #
+    # ヘッドマッサージ師がいつ乱入してくるかは予定に載らない（？で伏せる）。
     class DayIntro < Scene
-      AUTO_START = 10.0
-      MIN_SHOW   = 1.6
+      AUTO_START = 6.0
+      MIN_SHOW   = 0.8
 
-      LABELS = { muscle: "筋トレ", bath: "お風呂", supplement: "サプリ" }.freeze
+      LABELS = { muscle: "筋トレ", bath: "お風呂", supplement: "サプリ",
+                 massage: "？？？" }.freeze
       ICONS  = { muscle: Palette::RED, bath: Palette::CYAN,
-                 supplement: Palette::YELLOW }.freeze
+                 supplement: Palette::BLUE, massage: Palette::SLATE }.freeze
 
       def initialize(window, state)
         super
@@ -29,25 +32,25 @@ module Suiminkaizen
 
       def draw
         Stage.draw(@camera, :bedroom, elapsed)
-        Sprites::KOSUKE.draw3d(@camera, 2.3, Stage::FLOOR_Y, 5.6, 1.55,
-                               fog: Stage.fog(:bedroom))
 
-        Px.rect(10, 34, Config::W - 20, 168, Palette.alpha(Palette::INK, 232), 100)
-        Px.frame(10, 34, Config::W - 20, 168, Palette::VIOLET, 101)
+        Px.rect(8, 36, Config::W - 16, 172, Palette.alpha(Palette::INK, 232), 100)
+        Px.frame(8, 36, Config::W - 16, 172, Palette::VIOLET, 101)
 
-        Px.text_shadow(Assets.huge, "DAY #{state.day}", 24, 40, Palette::WHITE, 102)
-        Px.text_shadow(Assets.small, "/ #{Config::TOTAL_DAYS}", 66, 56,
+        draw_portrait
+        Px.text_shadow(Assets.huge, "DAY #{state.day}", 20, 41, Palette::WHITE, 102)
+        Px.text_shadow(Assets.small, "/ #{Config::TOTAL_DAYS}", 62, 57,
                        Palette::GRAY, 102)
-        Px.text_shadow(Assets.small, headline, Config::W - 24, 44,
+        Px.text_shadow(Assets.small, headline, Config::W - 20, 44,
                        Palette::CYAN, 102, align: :right)
 
         draw_status
         draw_menu
-        Px.text_shadow(Assets.small, "SPACE ではじめる",
-                       Config::W / 2, 208,
-                       Palette.alpha(Palette::YELLOW, blinking_alpha), 102, align: :center)
+
+        Px.text_shadow(Assets.small, "SPACE ではじめる", Config::W / 2, 212,
+                       Palette.alpha(Palette::YELLOW, blinking_alpha), 102,
+                       align: :center)
         Px.text_shadow(Assets.tiny, "#{(AUTO_START - elapsed).ceil}秒後に自動ではじまります",
-                       Config::W / 2, 226, Palette::SLATE, 102, align: :center)
+                       Config::W / 2, 230, Palette::SLATE, 102, align: :center)
 
         Hud.draw(state, elapsed)
         Hud.draw_drowsiness(state)
@@ -56,7 +59,17 @@ module Suiminkaizen
       private
 
       def start!
+        return if @moved
+
+        @moved = true
         goto(MinigameIntro.new(window, state, state.current_kind))
+      end
+
+      def draw_portrait
+        sprite = Assets.portrait(:normal)
+        return unless sprite
+
+        sprite.draw_sized(280, 204, 118, 102)
       end
 
       def headline
@@ -73,10 +86,10 @@ module Suiminkaizen
 
       def draw_status
         gauge = state.gauge
-        Px.text_shadow(Assets.small, "現在の睡眠ゲージ", 24, 72, Palette::BONE, 102)
-        Px.text_shadow(Assets.large, "#{gauge.to_i}", 150, 66,
+        Px.text_shadow(Assets.tiny, "現在の睡眠ゲージ", 20, 70, Palette::BONE, 102)
+        Px.text_shadow(Assets.large, gauge.to_i.to_s, 132, 64,
                        Palette.gauge_color(gauge.ratio), 102, align: :right)
-        Px.text_shadow(Assets.tiny, "/ 1000", 154, 76, Palette::GRAY, 102)
+        Px.text_shadow(Assets.tiny, "/ 1000", 136, 72, Palette::GRAY, 102)
 
         message =
           if gauge.ratio < 0.25 then "今日も冴えている。"
@@ -84,24 +97,27 @@ module Suiminkaizen
           elsif gauge.ratio < 0.75 then "まぶたが重い。気を抜くな。"
           else "もう限界が近い。1回のミスが命取り。"
           end
-        Px.text_shadow(Assets.tiny, message, 200, 74,
-                       gauge.ratio < 0.5 ? Palette::BONE : Palette::RED, 102,
-                       align: :center)
+        Px.text_shadow(Assets.tiny, message, 20, 86,
+                       gauge.ratio < 0.5 ? Palette::BONE : Palette::RED, 102)
       end
 
       def draw_menu
-        Px.text_shadow(Assets.small, "今日のメニュー", 24, 100, Palette::BONE, 102)
-        Px.rect(24, 116, Config::W - 48, 1, Palette::SLATE, 102)
+        Px.text_shadow(Assets.tiny, "今日の予定", 20, 104, Palette::BONE, 102)
+        Px.text_shadow(Assets.tiny, "各枠で「やる／何もしない」を選べます", 200, 104,
+                       Palette::SLATE, 102, align: :center)
+        Px.rect(20, 118, Config::W - 40, 1, Palette::SLATE, 102)
 
         state.schedule.each_with_index do |kind, i|
-          x = 30 + (i % 3) * 90
-          y = 124 + (i / 3) * 34
-          Px.rect(x, y, 80, 26, Palette.alpha(Palette::DUSK, 220), 102)
-          Px.rect(x, y, 4, 26, ICONS.fetch(kind), 103)
-          Px.text_shadow(Assets.tiny, "#{i + 1}. #{LABELS.fetch(kind)}", x + 10, y + 4,
-                         Palette::WHITE, 103)
-          Px.text_shadow(Assets.tiny, "最大 -#{Config.max_reward(state.day).round}",
-                         x + 10, y + 15, Palette::GREEN, 103)
+          x = 22 + (i % 3) * 92
+          y = 124 + (i / 3) * 40
+          Px.rect(x, y, 84, 32, Palette.alpha(Palette::DUSK, 225), 102)
+          Px.rect(x, y, 4, 32, ICONS.fetch(kind), 103)
+          Px.text_shadow(Assets.tiny, "#{i + 1}. #{LABELS.fetch(kind)}", x + 9, y + 4,
+                         kind == :massage ? Palette::SLATE : Palette::WHITE, 103)
+          Px.text_shadow(Assets.tiny, Config.format_clock(Config.clock_minutes(i)),
+                         x + 9, y + 18, Palette::CYAN, 103)
+          Px.text_shadow(Assets.tiny, "-#{Config.max_reward(state.day).round}",
+                         x + 78, y + 18, Palette::GREEN, 103, align: :right)
         end
       end
     end

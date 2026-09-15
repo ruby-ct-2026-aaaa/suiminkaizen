@@ -23,8 +23,15 @@ module Suiminkaizen
 
       def draw
         Stage.draw(@camera, :bedroom, elapsed)
-        Sprites::KOSUKE_FAINT.draw3d(@camera, 1.7, Stage::FLOOR_Y, 2.9, 1.1,
-                                     fog: Stage.fog(:bedroom))
+        # 倒れた峰小輔には、ミニゲームで沈んだときと同じ立ち絵を使う。
+        sprite = Assets.portrait(:fail)
+        if sprite
+          sprite.draw3d(@camera, 1.5, Stage::FLOOR_Y, 3.0, 1.0,
+                        fog: Stage.fog(:bedroom))
+        else
+          Sprites::KOSUKE_FAINT.draw3d(@camera, 1.7, Stage::FLOOR_Y, 2.9, 1.1,
+                                       fog: Stage.fog(:bedroom))
+        end
 
         Px.rect(0, 0, Config::W, Config::H, Palette.alpha(Palette::CRIMSON, 90), 100)
         Px.rect(0, 0, Config::W, Config::H,

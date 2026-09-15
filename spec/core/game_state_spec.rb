@@ -14,34 +14,81 @@ describe GameState do
     _(@state.slot).must_equal 0
   end
 
-  describe "1日のメニュー" do
-    it "3種目を2回ずつ、計6本になる" do
+  describe "1日の予定" do
+    it "6枠ある" do
       _(@state.schedule.size).must_equal Config::GAMES_PER_DAY
-      Minigames::ALL_KINDS.each do |kind|
-        _(@state.schedule.count(kind)).must_equal 2
-      end
     end
 
-    it "同じ種目が連続しない" do
+    it "ヘッドマッサージ師がちょうど2回、2枠目以降に乱入する" do
       20.times do
         schedule = GameState.new.schedule
-        _(schedule.each_cons(2).any? { |a, b| a == b }).must_equal false
+        _(schedule.count(:massage)).must_equal Config::MASSAGE_PER_DAY
+        _(schedule.first).wont_equal :massage
       end
     end
 
-    it "1日の締めは必ず夜のお風呂になる" do
-      20.times { _(GameState.new.schedule.last).must_equal :bath }
+    it "残りの枠は筋トレ・お風呂・サプリで埋まる" do
+      base = @state.schedule.reject { |kind| kind == :massage }
+      _(base.size).must_equal Config::GAMES_PER_DAY - Config::MASSAGE_PER_DAY
+      base.each { |kind| _(Minigames::BASE_KINDS).must_include kind }
+    end
+
+    it "同じ種目が続けて並ばない" do
+      20.times do
+        base = GameState.new.schedule.reject { |kind| kind == :massage }
+        _(base.each_cons(2).any? { |a, b| a == b }).must_equal false
+      end
+    end
+
+    it "その日の最後の自前の種目は夜のお風呂になる" do
+      20.times do
+        base = GameState.new.schedule.reject { |kind| kind == :massage }
+        _(base.last).must_equal :bath
+      end
+    end
+  end
+
+  describe "24時間時計" do
+    it "1日は 08:00 にはじまる" do
+      _(@state.clock_text).must_equal "08:00"
+    end
+
+    it "枠が進むと時計も進む" do
+      @state.advance_slot!
+      @state.advance_slot!
+      _(@state.clock_text).must_equal "13:00"
+    end
+
+    it "枠の途中でも針が進む" do
+      @state.slot_fraction = 0.5
+      _(@state.clock_text).must_equal "09:15"
+    end
+
+    it "6枠すべて終えると 23:00 になる" do
+      Config::GAMES_PER_DAY.times { @state.advance_slot! }
+      _(@state.clock_text).must_equal "23:00"
+    end
+
+    it "30分の睡眠で 23:30 になる" do
+      _(@state.sleep_clock_text(0.0)).must_equal "23:00"
+      _(@state.sleep_clock_text(1.0)).must_equal "23:30"
     end
   end
 
   describe "1日の進行" do
-    it "6本こなすと1日が終わる" do
-      5.times do
+    it "6枠こなすと1日が終わる" do
+      (Config::GAMES_PER_DAY - 1).times do
         @state.advance_slot!
         _(@state.day_finished?).must_equal false
       end
       @state.advance_slot!
       _(@state.day_finished?).must_equal true
+    end
+
+    it "ヘッドマッサージの枠だけは断れない" do
+      index = @state.schedule.index(:massage)
+      index.times { @state.advance_slot! }
+      _(@state.forced?).must_equal true
     end
 
     it "30分の睡眠でちょうど30だけ減る" do
@@ -64,12 +111,13 @@ describe GameState do
       _(@state.gauge.value).must_equal 0.0
     end
 
-    it "翌日になるとメニューが組み直される" do
+    it "翌日になると予定が組み直される" do
       @state.advance_slot!
       @state.next_day!
       _(@state.day).must_equal 2
       _(@state.slot).must_equal 0
       _(@state.day_results).must_be_empty
+      _(@state.clock_text).must_equal "08:00"
     end
 
     it "7日目が最終日" do
@@ -79,12 +127,30 @@ describe GameState do
     end
   end
 
+  describe "「何もしない」を選んだ枠" do
+    before { @result = @state.record_skip(:muscle) }
+
+    it "記録として残る" do
+      _(@state.day_results.size).must_equal 1
+      _(@result.skipped).must_equal true
+      _(@result.played?).must_equal false
+    end
+
+    it "削減もミスもゼロ" do
+      _(@result.reward).must_equal 0.0
+      _(@result.penalty).must_equal 0.0
+    end
+
+    it "達成率の平均には数えない" do
+      @state.record(playing_result(0.8))
+      _(@state.average_performance).must_be_close_to 0.8
+      _(@state.skipped_count).must_equal 1
+    end
+  end
+
   describe "成績の集計" do
     it "その日の成績と通算の成績を分けて持つ" do
-      result = Result.new(kind: :muscle, title: "筋トレ", score: 90.0, target: 100.0,
-                          performance: 0.9, reward: 90.0, rank: "A",
-                          max_combo: 5, level: 3, penalty: 12.0)
-      @state.record(result)
+      @state.record(playing_result(0.9))
       _(@state.day_results.size).must_equal 1
       _(@state.all_results.size).must_equal 1
       _(@state.average_performance).must_be_close_to 0.9
@@ -106,5 +172,11 @@ describe GameState do
       end
       _(closures.max).must_be :>, 0.3
     end
+  end
+
+  def playing_result(performance)
+    Result.new(kind: :muscle, title: "筋トレ", score: 90.0, target: 100.0,
+               performance: performance, reward: 90.0, rank: "A",
+               max_combo: 5, level: 3, penalty: 12.0)
   end
 end

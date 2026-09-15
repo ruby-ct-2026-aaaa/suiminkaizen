@@ -18,30 +18,39 @@ module Suiminkaizen
       Palette.rgb(hex)
     end
 
+    # 照明をしっかり入れた明るい部屋。
+    # 眠気が溜まるほど Hud の暗幕で視界が落ちていくので、
+    # 素の部屋のほうは明るくしておかないと終盤が何も見えなくなる。
     THEMES = {
-      # 深夜のトレーニングルーム
+      # トレーニングルーム
       gym: {
-        fog:   c(0x1d1a3d),
-        floor: c(0x3d3558), floor_line: c(0x5b4f84),
-        wall:  c(0x2b2650), ceil: c(0x221e44)
+        fog:   c(0x4a4280),
+        floor: c(0x7c6fae), floor_line: c(0xa89ad8),
+        wall:  c(0x625899), ceil: c(0x554b8a)
       },
       # 湯気のこもった浴室
       bath: {
-        fog:   c(0x2b5266),
-        floor: c(0x8fb4bd), floor_line: c(0x5f8b9a),
-        wall:  c(0x9cc3cc), ceil: c(0x6d94a1)
+        fog:   c(0x5e9db8),
+        floor: c(0xc6e4e9), floor_line: c(0x8fbecb),
+        wall:  c(0xdcf1f4), ceil: c(0xa9d2dd)
       },
-      # 夜のキッチン
+      # キッチン
       kitchen: {
-        fog:   c(0x2f2438),
-        floor: c(0x7b4d2e), floor_line: c(0x5c371f),
-        wall:  c(0x6d5a47), ceil: c(0x47392f)
+        fog:   c(0x6d5473),
+        floor: c(0xbc8054), floor_line: c(0x94603a),
+        wall:  c(0xb09578), ceil: c(0x86705c)
       },
       # 寝室（タイトル・睡眠・リザルト用）
       bedroom: {
-        fog:   c(0x161234),
-        floor: c(0x2c2450), floor_line: c(0x453a72),
-        wall:  c(0x201b45), ceil: c(0x191536)
+        fog:   c(0x3a3270),
+        floor: c(0x5d5390), floor_line: c(0x8b7dc4),
+        wall:  c(0x4c4283), ceil: c(0x403873)
+      },
+      # ヘッドマッサージのサロン
+      salon: {
+        fog:   c(0x8a7490),
+        floor: c(0xd8c6b2), floor_line: c(0xb09a86),
+        wall:  c(0xeaddcd), ceil: c(0xc4b09c)
       }
     }.freeze
 
@@ -71,6 +80,7 @@ module Suiminkaizen
         when :bath    then decorate_bath(camera, t, time)
         when :kitchen then decorate_kitchen(camera, t, time)
         when :bedroom then decorate_bedroom(camera, t, time)
+        when :salon   then decorate_salon(camera, t, time)
         end
       end
 
@@ -264,6 +274,42 @@ module Suiminkaizen
         # 冷蔵庫の灯り
         glow = Palette.alpha(Palette::YELLOW, 40 + (Math.sin(time * 1.7) * 12).round)
         wall_rect(camera, 2.2, -0.1, 2.9, 1.4, glow, 5)
+      end
+
+      # ヘッドマッサージのサロン。間接照明と観葉植物で、いかにも眠くなる部屋。
+      def decorate_salon(camera, t, time)
+        # 木目の腰壁
+        wall_rect(camera, -HALF_W, 0.35, HALF_W, FLOOR_Y, c(0xa8815c), 4)
+        wall_rect(camera, -HALF_W, 0.35, HALF_W, 0.42, c(0x7d5c3e), 5)
+
+        # 大きな鏡
+        wall_rect(camera, -1.9, -0.95, 1.9, 0.2, c(0xb49f8c), 4)
+        wall_rect(camera, -1.8, -0.88, 1.8, 0.13, c(0xd7ecef), 5)
+        wall_rect(camera, -1.8, -0.88, -0.9, 0.13, c(0xe8f7f9), 6)
+
+        # 間接照明。ゆっくり明滅させて、まぶたが重くなる感じを出す。
+        glow = (Math.sin(time * 0.9) + 1.0) * 0.5
+        warm = Palette.mix(c(0xffd9a0), c(0xffb567), glow)
+        [-2.6, 2.6].each do |x|
+          wall_rect(camera, x - 0.28, -0.85, x + 0.28, -0.25, warm, 5)
+        end
+        [3.0, 6.0, 9.0].each do |z|
+          a = camera.project(-0.55, CEIL_Y + 0.04, z)
+          b = camera.project(0.55, CEIL_Y + 0.04, z + 0.45)
+          Px.rect(a[0], a[1], b[0] - a[0], (b[1] - a[1]).abs + 1,
+                  Palette.alpha(warm, 210), 4)
+        end
+
+        # 観葉植物とタオル棚
+        [[-2.85, 5.0], [2.85, 6.2]].each do |(x, z)|
+          pot = camera.project(x, FLOOR_Y, z)
+          scale = camera.scale_at(z)
+          Px.rect(pot[0] - 0.22 * scale, pot[1] - 0.3 * scale,
+                  0.44 * scale, 0.3 * scale, c(0x9c6b4a), Config.depth_z(z))
+          Px.rect(pot[0] - 0.3 * scale, pot[1] - 0.95 * scale,
+                  0.6 * scale, 0.66 * scale, c(0x4f8a4a), Config.depth_z(z) + 1)
+        end
+        side_rect(camera, -HALF_W + 0.02, -0.25, -0.08, 6.5, 8.2, c(0xf2ece2), 5)
       end
 
       def decorate_bedroom(camera, _t, time)

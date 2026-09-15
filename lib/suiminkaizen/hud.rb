@@ -1,15 +1,18 @@
 # frozen_string_literal: true
 
 module Suiminkaizen
-  # 画面上部の睡眠ゲージと、眠気そのものを見せる画面効果。
+  # 画面上部の情報（24時間時計・日付・睡眠ゲージ）と、眠気そのものを見せる画面効果。
   #
   # 数字を読まなくても「やばい」と分かることを重視していて、
   # ゲージが溜まるほど画面の四隅が暗く落ち、まぶたが落ちる回数が増える。
   module Hud
     BAR_X = 6
-    BAR_Y = 15
+    BAR_Y = 20
     BAR_W = Config::W - 12
     BAR_H = 9
+
+    CLOCK_W = 74
+    CLOCK_H = 17
 
     Z_HUD     = 200
     Z_OVERLAY = 250
@@ -17,8 +20,24 @@ module Suiminkaizen
     module_function
 
     def draw(state, time = 0.0)
+      Px.rect(0, 0, Config::W, 32, Palette.alpha(Palette::INK, 150), Z_HUD - 1)
+      draw_clock(state, time)
       draw_bar(state, time)
       draw_labels(state)
+    end
+
+    # 24時間表記のデジタル時計。1日は 08:00 に始まり 23:00 に終わる。
+    def draw_clock(state, time, text = nil)
+      x = Config::W / 2
+      Px.rect(x - CLOCK_W / 2, 1, CLOCK_W, CLOCK_H, Palette.rgb(0x0d1a12), Z_HUD)
+      Px.frame(x - CLOCK_W / 2, 1, CLOCK_W, CLOCK_H, Palette.rgb(0x2c4a38), Z_HUD + 1)
+
+      label = text || state.clock_text
+      # コロンを1秒ごとに点滅させて、デジタル時計らしく見せる。
+      label = label.sub(":", " ") if (time * 2).to_i.odd?
+
+      Px.text(Assets.large, label, x, 2, Palette.rgb(0x6cf0a0), Z_HUD + 2,
+              align: :center)
     end
 
     def draw_bar(state, time)
@@ -51,12 +70,12 @@ module Suiminkaizen
     def draw_labels(state)
       font = Assets.tiny
       Px.text_shadow(font, "DAY #{state.day} / #{Config::TOTAL_DAYS}",
-                     BAR_X, 3, Palette::WHITE, Z_HUD + 6)
+                     BAR_X, 5, Palette::WHITE, Z_HUD + 6)
 
       gauge = state.gauge
-      label = "睡眠ゲージ #{gauge.to_i} / #{Config::MAX_GAUGE.to_i}"
+      label = "睡眠 #{gauge.to_i} / #{Config::MAX_GAUGE.to_i}"
       tone = gauge.ratio > 0.8 ? Palette::RED : Palette::BONE
-      Px.text_shadow(font, label, Config::W - BAR_X, 3, tone, Z_HUD + 6, align: :right)
+      Px.text_shadow(font, label, Config::W - BAR_X, 5, tone, Z_HUD + 6, align: :right)
     end
 
     # --- 眠気の画面効果 ---------------------------------------------------

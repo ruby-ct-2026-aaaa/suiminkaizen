@@ -34,8 +34,15 @@ module Suiminkaizen
 
       def draw
         Stage.draw(@camera, :bedroom, elapsed)
-        Sprites::KOSUKE.draw3d(@camera, 0.0, Stage::FLOOR_Y, 3.2, 1.55,
-                               fog: Stage.fog(:bedroom))
+        # 7日を走り切った峰小輔は、得意げな立ち絵で締める。
+        sprite = Assets.portrait(:success)
+        if sprite
+          sprite.draw3d(@camera, 0.0, Stage::FLOOR_Y, 3.4, 1.35,
+                        fog: Stage.fog(:bedroom))
+        else
+          Sprites::KOSUKE.draw3d(@camera, 0.0, Stage::FLOOR_Y, 3.2, 1.55,
+                                 fog: Stage.fog(:bedroom))
+        end
         draw_confetti
 
         Px.rect(0, 14, Config::W, 52, Palette.alpha(Palette::INK, 185), 100)

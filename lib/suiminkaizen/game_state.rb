@@ -1,13 +1,15 @@
 # frozen_string_literal: true
 
 module Suiminkaizen
-  # ミニゲーム1本の成績。
+  # ミニゲーム1本の成績。skipped が真なら「やらなかった」枠。
   Result = Struct.new(:kind, :title, :score, :target, :performance, :reward, :rank,
-                      :max_combo, :level, :penalty, keyword_init: true) do
+                      :max_combo, :level, :penalty, :skipped, keyword_init: true) do
     # 上限で頭打ちにする前の、素の達成率。バランス調整の目安に使う。
     def raw_performance
-      target.positive? ? score / target : 0.0
+      target.to_f.positive? ? score / target : 0.0
     end
+
+    def played? = !skipped
   end
 
   # 1日ぶんの記録。
@@ -15,6 +17,8 @@ module Suiminkaizen
 
   # セーブデータに相当する、ゲーム全体の進行状態。
   class GameState
+    # 進行中の枠の進み具合（0.0〜1.0）。24時間時計の針を進めるのに使う。
+    attr_accessor :slot_fraction
     attr_reader :day, :gauge, :schedule, :slot, :day_results, :days, :blink
 
     def initialize
@@ -31,6 +35,7 @@ module Suiminkaizen
 
     def start_day!
       @slot = 0
+      @slot_fraction = 0.0
       @schedule = build_schedule
       @day_results = []
       @day_start_gauge = @gauge.value
@@ -40,12 +45,28 @@ module Suiminkaizen
       @schedule[@slot]
     end
 
+    # ヘッドマッサージ師の乱入は断れない。
+    def forced?
+      current_kind == :massage
+    end
+
     def record(result)
       @day_results << result
     end
 
+    # 「何もしない」を選んだ枠。削減はないが、ミスもしない。
+    def record_skip(kind)
+      result = Result.new(kind: kind, title: Minigames.klass(kind).title,
+                          score: 0.0, target: 0.0, performance: 0.0,
+                          reward: 0.0, rank: "-", max_combo: 0, level: 0,
+                          penalty: 0.0, skipped: true)
+      @day_results << result
+      result
+    end
+
     def advance_slot!
       @slot += 1
+      @slot_fraction = 0.0
     end
 
     def day_finished?
@@ -73,19 +94,42 @@ module Suiminkaizen
       @day_start_gauge
     end
 
-    # --- 集計 -------------------------------------------------------------
+    # --- 24時間時計 -------------------------------------------------------
+    # 1日は 08:00 に始まり、6枠を消化して 23:00 に終わる。
+    # 枠が進むほど時計も進むので、「やらない」を選ぶと時間だけが飛んでいく。
 
-    def total_reduced
-      @days.sum { |d| d.results.sum(&:reward) } +
-        @day_results.sum(&:reward)
+    def clock_minutes
+      progress = @slot + (@slot_fraction || 0.0)
+      progress = Config::GAMES_PER_DAY if progress > Config::GAMES_PER_DAY
+      Config.clock_minutes(progress)
     end
+
+    def clock_text
+      Config.format_clock(clock_minutes)
+    end
+
+    # 就寝中だけは 23:00 から 23:30 へ、別枠で進める。
+    def sleep_clock_text(progress)
+      Config.format_clock(Config.clock_minutes(Config::GAMES_PER_DAY) +
+                          Config::SLEEP_RECOVERY * progress)
+    end
+
+    # --- 集計 -------------------------------------------------------------
 
     def all_results
       @days.flat_map(&:results) + @day_results
     end
 
+    def played_results
+      all_results.select(&:played?)
+    end
+
+    def skipped_count
+      all_results.count(&:skipped)
+    end
+
     def average_performance
-      list = all_results
+      list = played_results
       return 0.0 if list.empty?
 
       list.sum(&:performance) / list.size
@@ -128,17 +172,28 @@ module Suiminkaizen
 
     private
 
-    # 1日は6本。3種類を2回ずつこなす。
-    # 同じ種目が連続しないように並べ、締めは必ず「夜のお風呂」にする。
+    # 1日は6枠。うち2枠はヘッドマッサージ師の乱入で、位置はその日ごとに変わる。
+    # 残りの4枠が筋トレ／お風呂／サプリメントで、同じ種目は連続しない。
     def build_schedule
-      pool = Minigames::ALL_KINDS * 2
-      pool.delete_at(pool.index(:bath))
+      slots = Array.new(Config::GAMES_PER_DAY)
 
-      20.times do
-        list = pool.shuffle + [:bath]
-        return list unless list.each_cons(2).any? { |a, b| a == b }
-      end
-      pool.shuffle + [:bath]
+      # 初手からの乱入は避ける。2枠目以降に不意に割り込んでくる。
+      (1...Config::GAMES_PER_DAY).to_a.sample(Config::MASSAGE_PER_DAY)
+                                 .each { |i| slots[i] = :massage }
+
+      open = slots.each_index.reject { |i| slots[i] }
+      base_sequence(open.size).each_with_index { |kind, i| slots[open[i]] = kind }
+      slots
+    end
+
+    # 締めが「夜のお風呂」になるよう、お風呂から逆向きに組み立てる。
+    # 直前と違う種目を選び続けるので、同じ種目は決して連続しない。
+    def base_sequence(count)
+      return [] if count <= 0
+
+      list = [:bath]
+      (count - 1).times { list << (Minigames::BASE_KINDS - [list.last]).sample }
+      list.reverse
     end
   end
 end

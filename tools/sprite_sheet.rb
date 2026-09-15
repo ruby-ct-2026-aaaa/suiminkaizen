@@ -39,9 +39,9 @@ entries.each_with_index do |(name, sprite), i|
   col = i % cols
   row = i / cols
   # Px は論理座標を SCALE 倍するので、逆算して置く
-  cx = (col * cell_w + cell_w / 2) / Config::SCALE.to_f
-  by = (row * cell_h + cell_h - GAP) / Config::SCALE.to_f
-  ppu = ZOOM / Config::SCALE.to_f
+  cx = (col * cell_w + cell_w / 2) / Config::REFERENCE_SCALE.to_f
+  by = (row * cell_h + cell_h - GAP) / Config::REFERENCE_SCALE.to_f
+  ppu = ZOOM / Config::REFERENCE_SCALE.to_f
 
   # 市松模様の下敷き（透明部分が分かるように）
   left = cx - sprite.width * ppu / 2

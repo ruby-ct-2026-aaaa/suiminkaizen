@@ -34,7 +34,7 @@ def shot(name, seconds: 1.0, gauge: nil, frames: nil)
     window.update
   end
 
-  canvas = Canvas.new(Config::SCREEN_W, Config::SCREEN_H)
+  canvas = Canvas.new(window.width, window.height)
   Gosu.canvas = canvas
   window.draw
   Gosu.canvas = nil
@@ -64,15 +64,19 @@ shot("05_supplement", seconds: 7.0, gauge: 300) do |w|
   w.goto(Minigames::Supplement.new(w, w.state))
 end
 
-shot("06_sleep", seconds: 3.0, gauge: 500) do |w|
+shot("06_massage", seconds: 8.0, gauge: 260) do |w|
+  w.goto(Minigames::HeadMassage.new(w, w.state))
+end
+
+shot("07_sleep", seconds: 2.0, gauge: 500) do |w|
   w.goto(Scenes::Sleep.new(w, w.state))
 end
 
-shot("07_game_over", seconds: 1.5, gauge: 999) do |w|
+shot("08_game_over", seconds: 1.5, gauge: 999) do |w|
   w.goto(Scenes::GameOver.new(w, w.state))
 end
 
-shot("08_drowsy", seconds: 6.0, gauge: 880) do |w|
+shot("09_drowsy", seconds: 6.0, gauge: 880) do |w|
   w.goto(Minigames::Muscle.new(w, w.state))
 end
 

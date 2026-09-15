@@ -41,11 +41,12 @@ class Player
 
   def presses(scene)
     case scene
-    when Minigames::Muscle     then muscle(scene)
-    when Minigames::Bath       then bath(scene)
-    when Minigames::Supplement then supplement(scene)
-    when Minigames::Base       then []
-    when Scene                 then [Gosu::KB_SPACE] # メニューはとにかく進める
+    when Minigames::Muscle      then muscle(scene)
+    when Minigames::Bath        then bath(scene)
+    when Minigames::Supplement  then supplement(scene)
+    when Minigames::HeadMassage then massage(scene)
+    when Minigames::Base        then []
+    when Scene                  then [Gosu::KB_SPACE] # メニューはとにかく進める
     else []
     end
   end
@@ -71,6 +72,16 @@ class Player
     return [] unless scene.instance_variable_get(:@doze_active)
 
     rand < @accuracy * 0.06 ? [Gosu::KB_SPACE] : []
+  end
+
+  # ヘッドマッサージは反応勝負。腕前が低いほど反応が遅れ、押し間違える。
+  def massage(scene)
+    prompt = scene.instance_variable_get(:@prompt)
+    return [] unless prompt
+    return [] if rand > @accuracy
+
+    correct = rand < @accuracy
+    [correct ? prompt[:key] : Minigames::HeadMassage::KEYS.keys.sample]
   end
 
   def supplement(scene)
