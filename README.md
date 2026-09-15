@@ -9,9 +9,27 @@
 
 ## 動かす
 
+### Windows（いちばん簡単）
+
+**`start_game.bat` をダブルクリックする。**
+
+Ruby が PATH に入っていなくても `C:\Ruby*` などから自動で探し、gosu が未導入なら
+入れてから起動する。黒いウィンドウが一緒に開くが、閉じずにそのままにしておくこと。
+
+> GitHub のページ上でファイルをクリックしても実行はされない。
+> 一度 `git clone`（または Code → Download ZIP）して手元に持ってくる必要がある。
+
+### コマンドから
+
 ```bash
 gem install gosu
 ruby main.rb
+```
+
+Ruby が PATH にない場合は実行ファイルを直に指定する。
+
+```bat
+C:\Ruby40-x64\bin\ruby.exe main.rb
 ```
 
 必要なのは Ruby と gosu だけ。画像・音声のファイルは一切なく、ドット絵はすべて
@@ -86,6 +104,7 @@ ruby main.rb
 
 ```
 main.rb                     起動用
+start_game.bat              Windows 用ランチャー（ダブルクリックで起動）
 lib/suiminkaizen/
   config.rb                 バランス定数（調整はここだけで完結する）
   palette.rb  px.rb         色と、ドット単位の描画ラッパー

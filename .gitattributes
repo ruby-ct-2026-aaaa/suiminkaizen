@@ -1,0 +1,3 @@
+# Windows 用ランチャーは CP932(Shift_JIS) + CRLF で保存してある。
+# cmd.exe がそのまま読めるよう、git に一切変換させない。
+*.bat -text
