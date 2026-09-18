@@ -1,0 +1,52 @@
+{
+  "result": "victory",
+  "days": [
+    {
+      "day": 1,
+      "before_nap": 18.87,
+      "successes": 12
+    },
+    {
+      "day": 2,
+      "before_nap": 38.11,
+      "successes": 24
+    },
+    {
+      "day": 3,
+      "before_nap": 104.9,
+      "successes": 35
+    },
+    {
+      "day": 4,
+      "before_nap": 90.0,
+      "successes": 46
+    },
+    {
+      "day": 5,
+      "before_nap": 64.1,
+      "successes": 58
+    },
+    {
+      "day": 6,
+      "before_nap": 127.12,
+      "successes": 69
+    },
+    {
+      "day": 7,
+      "before_nap": 102.78,
+      "successes": 80
+    }
+  ],
+  "games": {
+    "training": 15,
+    "bath": 17,
+    "supplement": 16,
+    "massage": 16,
+    "camera": 16
+  },
+  "successes": 80,
+  "naps": 7,
+  "peak_gauge": 250.97,
+  "ending_gauge": 72.78,
+  "note": "全5種類をふつうで巡回。移動と採点を通し、反応ゲームは約0.14秒で入力する自動プレイヤー。人間の難易度評価ではありません。"
+}
