@@ -9,6 +9,11 @@ module Suiminkaizen
         @camera = Camera.new
       end
 
+      # 気絶した瞬間に一度だけ。
+      def enter
+        Sound.play(:faint)
+      end
+
       def update(dt)
         super
         @camera.update(dt)
