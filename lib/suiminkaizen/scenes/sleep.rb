@@ -2,34 +2,49 @@
 
 module Suiminkaizen
   module Scenes
-    # 1日の終わりに許された 30分の睡眠。
-    # たった 30 しか減らないという事実を、時計の針でたっぷり見せる。
+    # 30分の睡眠。00:00 から 00:30 へ、時計の針でたっぷり見せる。
+    #
+    # ゲーム開幕（DAY1 のはじまり）と、1日の終わりの両方で使う。
+    # opening: true のときは、その日の集計をせずに 1枠目へ送り出すだけ。
     class Sleep < Scene
-      FALL  = 0.8 # まぶたが落ちるまで
-      DOZE  = 2.2 # 眠っている時間
-      WAKE  = 1.0 # 目覚ましが鳴ってから
+      FALL  = 0.6 # まぶたが落ちるまで
+      DOZE  = 1.6 # 眠っている時間
+      WAKE  = 2.0 # 目覚ましが鳴ってから（起床の声を聞かせる）
       TOTAL = FALL + DOZE + WAKE
 
       CLOCK_X = 240
       CLOCK_Y = 96
       CLOCK_R = 26
 
-      def initialize(window, state)
-        super
+      def initialize(window, state, opening: false)
+        super(window, state)
+        @opening = opening
         @camera = Camera.new
         @before = state.gauge.value
         @recovered = 0.0
       end
 
+      # 開幕の睡眠か（1日の締めではなく、これから始まるほう）。
+      def opening? = @opening
+
       def enter
         # 実際の減算はここで一度だけ。表示上はゆっくり減っていくよう見せる。
-        @recovered = state.sleep!
+        # 開幕の睡眠では、その日の集計はまだしない。
+        @recovered = @opening ? state.gauge.reduce(Config::SLEEP_RECOVERY) : state.sleep!
+        Sound.play(:good_night)
       end
 
       def update(dt)
         super
         @camera.update(dt)
+        wake_up! if !@woke && elapsed >= FALL + DOZE
         finish! if elapsed >= TOTAL
+      end
+
+      # 目覚ましが鳴った瞬間に一度だけ。
+      def wake_up!
+        @woke = true
+        Sound.play(:good_morning)
       end
 
       def button_down(id)
@@ -97,10 +112,12 @@ module Suiminkaizen
                  CLOCK_R - 4)
         end
 
+        # 就寝は 0時ちょうどから。30分眠るあいだに、
+        # 分針は 12 から 6 へ半周し、短針は 12 から 15度だけ進む。
         minute_angle = Math::PI * 2 * (minutes / 60.0) - Math::PI / 2
-        hour_angle   = Math::PI * 2 * ((11.0 + minutes / 60.0) / 12.0) - Math::PI / 2
-        Px.ray(CLOCK_X, CLOCK_Y, hour_angle, CLOCK_R * 0.5, Palette::WHITE, 112, 2)
-        Px.ray(CLOCK_X, CLOCK_Y, minute_angle, CLOCK_R * 0.82, Palette::RED, 113, 1)
+        hour_angle   = Math::PI * 2 * ((minutes / 60.0) / 12.0) - Math::PI / 2
+        Px.ray(CLOCK_X, CLOCK_Y, hour_angle, CLOCK_R * 0.5, Palette::BONE, 112, 2)
+        Px.ray(CLOCK_X, CLOCK_Y, minute_angle, CLOCK_R * 0.82, Palette::WHITE, 113, 1)
         Px.rect(CLOCK_X - 1, CLOCK_Y - 1, 3, 3, Palette::WHITE, 114)
 
         Px.text_shadow(Assets.tiny, "#{minutes.round}分経過",
@@ -167,6 +184,12 @@ module Suiminkaizen
         return if @done
 
         @done = true
+        if @opening
+          # 00:30。ここからようやく1日がはじまる。
+          state.finish_opening_sleep!
+          return goto(MinigameIntro.new(window, state, state.current_kind))
+        end
+
         if state.last_day?
           goto(Ending.new(window, state))
         else
