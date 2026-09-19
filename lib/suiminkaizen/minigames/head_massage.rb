@@ -8,8 +8,11 @@ module Suiminkaizen
     # 断ることはできない。指が動くたびに「気持ちよさ」が溜まっていき、
     # 満タンになるといびきをかいて一気に眠気が増す。
     #
-    # ときどき出る矢印を、指が止まっているあいだに正しく押し返すことで
+    # ときどき出る指示を、指が止まっているあいだに正しく押し返すことで
     # 気持ちよさを押し下げる。押し間違いと押し遅れはどちらも命取り。
+    #
+    # 指示は1手ではなく「← ↑ SP」のような手順になっていて、
+    # レベルが上がるほど手数が伸びる。順番どおりに最後まで入れきること。
     class HeadMassage < Base
       KOSUKE_Z = 3.9
 
@@ -17,8 +20,12 @@ module Suiminkaizen
         Gosu::KB_LEFT  => "←",
         Gosu::KB_UP    => "↑",
         Gosu::KB_RIGHT => "→",
-        Gosu::KB_DOWN  => "↓"
+        Gosu::KB_DOWN  => "↓",
+        Gosu::KB_SPACE => "SP"
       }.freeze
+
+      # 手順の最大の長さ。
+      MAX_STEPS = 3
 
       SPOTS = ["こめかみ", "後頭部", "首すじ", "頭頂部", "耳のうしろ"].freeze
 
@@ -32,18 +39,18 @@ module Suiminkaizen
         def title = "ヘッドマッサージ"
         def subtitle = "乱入！ いびきをかいたら終わり"
         def theme = :salon
-        def target_score = 65.0
+        def target_score = 46.0
 
         def controls
-          ["← ↑ → ↓ ... 表示された矢印を押して耐える"]
+          ["← ↑ → ↓ と SPACE ... 表示された手順を左から順に押す"]
         end
 
         def rules
           [
             "マッサージ師が乱入。断れないので耐えるしかない。",
             "指が動くたび「気持ちよさ」が溜まっていく。",
-            "矢印が出たら、その向きのキーを時間内に押し返す。",
-            "満タンになるといびき ＝ 眠気が一気に増える。"
+            "出てくる手順（例：← SP ↓）を、順番どおり時間内に押しきる。",
+            "1つでも間違えるとやり直しはなし。満タンでいびき ＝ 大ダメージ。"
           ]
         end
       end
@@ -58,6 +65,11 @@ module Suiminkaizen
         @knead        = 0.0
       end
 
+      # 乱入の瞬間に警報。断れないことを音でも知らせる。
+      def enter
+        Sound.play(:alarm)
+      end
+
       def step(dt)
         @knead += dt * (5.0 + @bliss * 4.0)
         @snore -= dt
@@ -68,16 +80,12 @@ module Suiminkaizen
       end
 
       def button_down(id)
+        super
         return unless KEYS.key?(id)
         return unless @prompt
 
-        if id == @prompt[:key]
-          @answered += 1
-          @bliss = [@bliss - 0.18, 0.0].max
-          succeed(3.0, "こらえた！", Palette::CYAN, Config::W / 2, 122)
-          @prompt = nil
-          @prompt_timer = interval
-          level_up! if (@answered % 5).zero?
+        if id == @prompt[:keys][@prompt[:index]]
+          advance_prompt
         else
           @prompt = nil
           @prompt_timer = interval
@@ -87,8 +95,32 @@ module Suiminkaizen
       end
 
       def bliss = @bliss
+      def prompt = @prompt
 
       private
+
+      # 手順を1つ進める。最後まで入れきれたら気持ちよさを押し下げられる。
+      def advance_prompt
+        @prompt[:index] += 1
+        steps = @prompt[:keys].size
+        if @prompt[:index] < steps
+          popup("#{@prompt[:index]} / #{steps}", Palette::BONE, Config::W / 2, 146)
+          return
+        end
+
+        @answered += 1
+        # 長い手順ほど、こらえたときの効きが大きい。
+        @bliss = [@bliss - (0.12 + steps * 0.06), 0.0].max
+        succeed(1.6 + steps * 1.4, "こらえた！", Palette::CYAN, Config::W / 2, 122)
+        @prompt = nil
+        @prompt_timer = interval
+        level_up! if (@answered % 5).zero?
+      end
+
+      # レベルが上がるほど手数が伸びる。
+      def steps_for_level
+        [1 + (@level - 1) / 3, MAX_STEPS].min
+      end
 
       # 気持ちよさは放っておけば溜まる一方。満タンでいびき。
       def soak(dt)
@@ -107,8 +139,9 @@ module Suiminkaizen
         [(1.55 - (@level - 1) * 0.12) / @difficulty, 0.65].max * (0.85 + rand * 0.3)
       end
 
-      def answer_window
-        [(1.30 - (@level - 1) * 0.08) / @difficulty, 0.55].max
+      def answer_window(steps = 1)
+        base = [(1.30 - (@level - 1) * 0.08) / @difficulty, 0.55].max
+        base * (1.0 + (steps - 1) * 0.72)
       end
 
       def update_prompt(dt)
@@ -126,9 +159,11 @@ module Suiminkaizen
         @prompt_timer -= dt
         return if @prompt_timer.positive?
 
-        key = KEYS.keys.sample
-        span = answer_window
-        @prompt = { key: key, symbol: KEYS[key], left: span, span: span }
+        steps = steps_for_level
+        keys  = Array.new(steps) { KEYS.keys.sample }
+        span  = answer_window(steps)
+        @prompt = { keys: keys, symbols: keys.map { |k| KEYS[k] },
+                    index: 0, left: span, span: span }
         @spot = SPOTS.sample
       end
 
@@ -188,28 +223,18 @@ module Suiminkaizen
       end
 
       # マッサージ師は椅子の後ろに立っている。
-      # 峰小輔に隠れてほとんど見えないので、頭の上に出る部分と、
-      # 頭へ下りてくる腕だけをはっきり描く。
+      # 峰小輔の背中に隠れるので、見えるのは肩から上と、
+      # 頭へ下りてくる腕だけ。そこをドット絵で描く。
+      MASSEUR_HEIGHT = 1.85 # 肩から上が、ちょうど峰小輔の頭の上に出る大きさ
+      MASSEUR_BOTTOM = 0.55 # 床からどれだけ浮かせて描くか（腰から下は見えない）
+
       def draw_masseur
         order = Config.depth_z(MASSEUR_Z)
-        coat  = Palette.rgb(0x6f5c7d)
 
-        plate = lambda do |x0, y0, x1, y1, color, zz|
-          a = @camera.project(x0, y0, MASSEUR_Z)
-          b = @camera.project(x1, y1, MASSEUR_Z)
-          Px.rect(a[0], a[1], b[0] - a[0], b[1] - a[1], color, zz)
-        end
-
-        # 肩から上（峰小輔の頭より高い位置に出る）
-        plate.call(-0.52, Stage::FLOOR_Y - 1.95, 0.52, Stage::FLOOR_Y - 0.4, coat, order)
-        plate.call(-0.52, Stage::FLOOR_Y - 1.95, 0.52, Stage::FLOOR_Y - 1.88,
-                   Palette.rgb(0x8a7699), order + 1)
-        plate.call(-0.09, Stage::FLOOR_Y - 2.10, 0.09, Stage::FLOOR_Y - 1.95,
-                   Palette::SKIN_DARK, order + 1)
-        plate.call(-0.20, Stage::FLOOR_Y - 2.48, 0.20, Stage::FLOOR_Y - 2.10,
-                   Palette::SKIN, order + 1)
-        plate.call(-0.22, Stage::FLOOR_Y - 2.56, 0.22, Stage::FLOOR_Y - 2.34,
-                   Palette.rgb(0x3d3145), order + 2)
+        # 揉むたびに、ほんのわずか上体が動く。
+        sway = Math.sin(@knead * 0.5) * 0.02
+        Sprites::MASSEUR.draw3d(@camera, sway, Stage::FLOOR_Y - MASSEUR_BOTTOM,
+                                MASSEUR_Z, MASSEUR_HEIGHT, fog: Stage.fog(:salon))
 
         draw_arms(order)
       end
@@ -217,7 +242,6 @@ module Suiminkaizen
       # 頭を揉む腕と手。左右で位相をずらして、こねるように動かす。
       def draw_arms(order)
         hand_z = KOSUKE_Z - 0.14
-        hand_scale = @camera.scale_at(hand_z)
         hand_order = Config.depth_z(hand_z)
 
         [[-1, 0.0], [1, Math::PI * 0.6]].each do |(side, phase)|
@@ -227,28 +251,19 @@ module Suiminkaizen
           cy = HEAD_Y + bob
 
           # 肩 → ひじ → 手首。袖は白衣、そこから先は素肌。
-          elbow_x = side * 0.46
-          elbow_y = Stage::FLOOR_Y - 1.80
-          limb(side * 0.44, Stage::FLOOR_Y - 1.86, MASSEUR_Z,
-               elbow_x, elbow_y, MASSEUR_Z - 0.2, 0.10, 0.085,
+          elbow_x = side * 0.50
+          elbow_y = Stage::FLOOR_Y - 1.72
+          limb(side * 0.40, Stage::FLOOR_Y - 1.80, MASSEUR_Z,
+               elbow_x, elbow_y, MASSEUR_Z - 0.2, 0.085, 0.07,
                Palette.rgb(0xe8dfef), order + 3)
           limb(elbow_x, elbow_y, MASSEUR_Z - 0.2,
-               cx + side * 0.06, cy - 0.06, hand_z, 0.08, 0.065,
+               cx + side * 0.05, cy - 0.04, hand_z, 0.065, 0.05,
                Palette::SKIN_DARK, hand_order - 1)
 
-          # 手のひらと指
-          a = @camera.project(cx - 0.09, cy - 0.13, hand_z)
-          b = @camera.project(cx + 0.09, cy + 0.08, hand_z)
-          Px.rect(a[0], a[1], b[0] - a[0], b[1] - a[1], Palette::SKIN, hand_order)
-          3.times do |i|
-            fx = cx - 0.06 + i * 0.06
-            f0 = @camera.project(fx - 0.018, cy + 0.04, hand_z)
-            f1 = @camera.project(fx + 0.018, cy + 0.15, hand_z)
-            Px.rect(f0[0], f0[1], f1[0] - f0[0], f1[1] - f0[1],
-                    Palette::SKIN, hand_order + 1)
-          end
-          Px.rect(a[0], a[1], b[0] - a[0], [(0.035 * hand_scale).round, 1].max,
-                  Palette.mix(Palette::SKIN, Palette::WHITE, 0.45), hand_order + 2)
+          # 手はドット絵。内向きになるよう、左右で反転させる。
+          Sprites::HAND.draw3d(@camera, cx, cy + 0.14, hand_z, 0.30,
+                               flip: side.negative?, z: hand_order + 1,
+                               fog: Stage.fog(:salon))
         end
       end
 
@@ -272,16 +287,34 @@ module Suiminkaizen
                        Palette::PINK, z + 5, align: :right)
       end
 
+      # 手順を左から並べ、済んだものは沈ませ、次に押すものだけを光らせる。
       def draw_prompt
-        ratio = @prompt[:left] / @prompt[:span]
-        Px.rect(Config::W / 2 - 46, 96, 92, 50, Palette.alpha(Palette::INK, 205), 180)
-        Px.frame(Config::W / 2 - 46, 96, 92, 50, Palette::CYAN, 181)
-        Px.text_shadow(Assets.title, @prompt[:symbol], Config::W / 2, 92,
-                       Palette::WHITE, 182, align: :center)
+        ratio  = @prompt[:left] / @prompt[:span]
+        steps  = @prompt[:symbols].size
+        cell   = 46
+        width  = cell * steps + 12
+        left   = Config::W / 2 - width / 2
 
-        width = (80 * ratio).round
-        Px.rect(Config::W / 2 - 40, 138, 80, 4, Palette.rgb(0x3a2244), 182)
-        Px.rect(Config::W / 2 - 40, 138, width,  4,
+        Px.rect(left, 96, width, 50, Palette.alpha(Palette::INK, 205), 180)
+        Px.frame(left, 96, width, 50, Palette::CYAN, 181)
+
+        @prompt[:symbols].each_with_index do |symbol, i|
+          x = left + 6 + cell * i + cell / 2
+          tone =
+            if i < @prompt[:index] then Palette::SLATE
+            elsif i == @prompt[:index] then Palette::WHITE
+            else Palette::GRAY
+            end
+          if i == @prompt[:index]
+            Px.frame(x - cell / 2 + 3, 100, cell - 6, 34,
+                     Palette.alpha(Palette::YELLOW, blinking_alpha(8.0)), 181)
+          end
+          Px.text_shadow(Assets.large, symbol, x, 104, tone, 182, align: :center)
+        end
+
+        bar = width - 12
+        Px.rect(left + 6, 138, bar, 4, Palette.rgb(0x3a2244), 182)
+        Px.rect(left + 6, 138, (bar * ratio).round, 4,
                 ratio < 0.35 ? Palette::RED : Palette::YELLOW, 183)
       end
 

@@ -4,9 +4,11 @@ module Suiminkaizen
   module Minigames
     # お風呂。
     #
-    # 湯温は放っておくと下がり、ゆらぎもする。上下キーで追い焚き／水を足して
-    # 少しずつ動く「ちょうどいい温度」の帯に保ちつづける。
-    # ただし気持ちよくなりすぎると湯船で寝落ちしかける ＝ ウトウト判定が入り、
+    # 「湯温」と「湯量」の2本を同時に保つ種目。
+    #   ↑ 追い焚き（熱くなる）／↓ うめる（ぬるくなり、そのぶん湯量は増える）
+    #   → 足し湯（湯量が増え、水なので少しぬるくなる）／← 湯を抜く（湯量が減る）
+    # どちらの帯もゆっくり動くので、片方を直すともう片方がずれていく。
+    # さらに気持ちよくなりすぎると湯船で寝落ちしかける ＝ ウトウト判定が入り、
     # SPACE で踏みとどまれなければ一気に眠気が増える。
     class Bath < Base
       MIN_TEMP = 35.0
@@ -27,18 +29,18 @@ module Suiminkaizen
         def title = "お風呂"
         def subtitle = "ちょうどいい湯加減をキープ"
         def theme = :bath
-        def target_score = 62.0
+        def target_score = 41.0
 
         def controls
-          ["↑ ... 追い焚き（熱くする）", "↓ ... 水を足す（ぬるくする）",
+          ["↑ 追い焚き　↓ うめる（湯量+）　→ 足し湯（湯量+・ぬるい）　← 湯を抜く",
            "SPACE ... ウトウトしたら押して覚醒"]
         end
 
         def rules
           [
-            "湯温を、ゆっくり動く緑の帯の中に保ちつづける。",
-            "帯から大きく外れるとのぼせ／湯冷めで眠気が増える。",
-            "リラックスが満タンになると難易度が上がり、効率も上がる。",
+            "湯温と湯量、2本のメーターをどちらも緑の帯に保ちつづける。",
+            "帯はゆっくり動くうえ、うめる・足し湯は湯量まで動かしてしまう。",
+            "どちらかが大きく外れるとのぼせ／湯冷め／溢れで眠気が増える。",
             "「ウトウト…」が出たら即 SPACE。湯船で寝たら致命傷。"
           ]
         end
@@ -48,6 +50,10 @@ module Suiminkaizen
         @temp        = 41.0
         @target      = 41.0
         @target_dir  = rand < 0.5 ? -1.0 : 1.0
+        @water        = 0.55
+        @water_target = 0.55
+        @water_dir    = rand < 0.5 ? -1.0 : 1.0
+        @water_gripe  = 0.0
         @relax       = 0.0
         @doze_timer  = 3.8 + rand * 1.6
         @doze_active = false
@@ -61,6 +67,7 @@ module Suiminkaizen
 
       def step(dt)
         drift_temperature(dt)
+        drift_water(dt)
         move_target(dt)
         judge(dt)
         update_doze(dt)
@@ -69,6 +76,7 @@ module Suiminkaizen
       end
 
       def button_down(id)
+        super
         return unless confirm?(id)
 
         if @doze_active
@@ -82,7 +90,36 @@ module Suiminkaizen
         [0.85 - (@level - 1) * 0.06, 0.34].max
       end
 
+      def water_half
+        [0.16 - (@level - 1) * 0.011, 0.065].max
+      end
+
+      def water_ok?
+        (@water - @water_target).abs <= water_half
+      end
+
+      attr_reader :water, :water_target
+
       private
+
+      # 湯はじわじわ減る。→ 足し湯 と ↓ うめる で増え、← 湯抜き で減る。
+      def drift_water(dt)
+        @water -= (0.035 + @level * 0.004) * dt
+
+        if Gosu.button_down?(Gosu::KB_RIGHT) || Gosu.button_down?(Gosu::KB_D)
+          @water += 0.20 * dt
+          @temp  -= 1.1 * dt # 足し湯は水なので少しぬるくなる
+        end
+        if Gosu.button_down?(Gosu::KB_LEFT) || Gosu.button_down?(Gosu::KB_A)
+          @water -= 0.22 * dt
+        end
+        if Gosu.button_down?(Gosu::KB_DOWN) || Gosu.button_down?(Gosu::KB_S)
+          @water += 0.10 * dt
+        end
+
+        @water = 0.0 if @water.negative?
+        @water = 1.0 if @water > 1.0
+      end
 
       def drift_temperature(dt)
         # 放っておけば冷める。わずかな揺らぎもある。
@@ -106,15 +143,45 @@ module Suiminkaizen
           @target = 39.2
           @target_dir = 1.0
         end
+
+        wspeed = (0.055 + (@level - 1) * 0.011) * @difficulty
+        @water_target += @water_dir * wspeed * dt
+        if @water_target > 0.78
+          @water_target = 0.78
+          @water_dir = -1.0
+        elsif @water_target < 0.32
+          @water_target = 0.32
+          @water_dir = 1.0
+        end
       end
 
       def judge(dt)
+        judge_temperature(dt)
+        judge_water(dt)
+      end
+
+      def judge_water(dt)
+        @water_gripe -= dt
+        off = (@water - @water_target).abs
+        return if off <= water_half * 2.2
+
+        drip(2.6 * dt)
+        return unless @water_gripe <= 0.0
+
+        @water_gripe = 1.5
+        @combo = 0
+        message = @water > @water_target ? "溢れそう！落ち着かない" : "肩が出て寒い"
+        popup(message, Palette::ORANGE, Config::W / 2, 172)
+      end
+
+      # 湯温と湯量がそろって帯の中にあるときだけ、まともに加点されていく。
+      def judge_temperature(dt)
         off = (@temp - @target).abs
         @complain -= dt
 
         if off <= band_half
-          gain(1.2 * dt)
-          @relax += dt * 0.12
+          gain((water_ok? ? 1.4 : 0.5) * dt)
+          @relax += dt * (water_ok? ? 0.13 : 0.04)
           if @relax >= 1.0
             @relax = 0.0
             succeed(6.0, "ととのった！", Palette::AQUA, Config::W / 2, 156)
@@ -173,14 +240,28 @@ module Suiminkaizen
       def scene_draw
         draw_tub
         draw_water
-        Sprites::KOSUKE_BATH.draw3d(@camera, 0.0, WATER_Y + 0.10, 4.8, 0.95,
-                                    fog: Stage.fog(:bath))
+        draw_kosuke
         Sprites::DUCK.draw3d(@camera, 1.45 + Math.sin(@ripple * 1.3) * 0.08,
                              WATER_Y + 0.02 + Math.sin(@ripple * 2.6) * 0.02,
                              3.7, 0.22, fog: Stage.fog(:bath))
         draw_steam
         draw_thermometer
+        draw_water_gauge
         draw_doze_prompt if @doze_active
+      end
+
+      # 取り込んだ峰小輔の立ち絵を、肩まで湯に浸かった高さで置く。
+      # 水面のポリゴンがあとから描かれるので、下半身は自然に湯へ沈む。
+      def draw_kosuke
+        sprite = Assets.portrait(:normal)
+        if sprite
+          # 水面のポリゴンはあとから描かれるので、下のほうは自然に湯へ沈む。
+          # 顔と肩が出る高さになるよう、足もとを水面のあたりに置いている。
+          sprite.draw3d(@camera, 0.0, WATER_Y, 4.8, 1.30, fog: Stage.fog(:bath))
+        else
+          Sprites::KOSUKE_BATH.draw3d(@camera, 0.0, WATER_Y + 0.10, 4.8, 0.95,
+                                      fog: Stage.fog(:bath))
+        end
       end
 
       def draw_tub
@@ -269,6 +350,38 @@ module Suiminkaizen
         Px.rect(GAUGE_X - 14, GAUGE_Y, 8, GAUGE_H, Palette.rgb(0x22384a), z + 1)
         fill = (GAUGE_H * @relax).round
         Px.rect(GAUGE_X - 14, GAUGE_Y + GAUGE_H - fill, 8, fill, Palette::PINK, z + 2)
+      end
+
+      WATER_GAUGE_X = 226
+      WATER_GAUGE_W = 14
+
+      # 湯量のメーター。湯温計の左に並べる。
+      def draw_water_gauge
+        z = 160
+        Px.rect(WATER_GAUGE_X - 4, GAUGE_Y - 14, WATER_GAUGE_W + 8, GAUGE_H + 30,
+                Palette::INK, z)
+        Px.rect(WATER_GAUGE_X, GAUGE_Y, WATER_GAUGE_W, GAUGE_H,
+                Palette.rgb(0x22384a), z + 1)
+
+        band_top    = water_to_y(@water_target + water_half)
+        band_bottom = water_to_y(@water_target - water_half)
+        Px.rect(WATER_GAUGE_X, band_top, WATER_GAUGE_W, band_bottom - band_top,
+                Palette.alpha(Palette::GREEN, 190), z + 2)
+
+        y = water_to_y(@water)
+        Px.rect(WATER_GAUGE_X, y, WATER_GAUGE_W, GAUGE_Y + GAUGE_H - y,
+                water_ok? ? Palette::AQUA : Palette::ORANGE, z + 4)
+        Px.rect(WATER_GAUGE_X - 3, y - 1, WATER_GAUGE_W + 6, 3, Palette::WHITE, z + 5)
+
+        Px.text_shadow(Assets.tiny, "湯量", WATER_GAUGE_X + WATER_GAUGE_W / 2,
+                       GAUGE_Y - 13, Palette::BONE, z + 6, align: :center)
+        Px.text_shadow(Assets.tiny, "← →", WATER_GAUGE_X + WATER_GAUGE_W / 2,
+                       GAUGE_Y + GAUGE_H + 4, Palette::SLATE, z + 6, align: :center)
+      end
+
+      def water_to_y(value)
+        t = value.clamp(0.0, 1.0)
+        GAUGE_Y + GAUGE_H - GAUGE_H * t
       end
 
       def temp_to_y(temp)
