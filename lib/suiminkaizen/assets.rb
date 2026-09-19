@@ -28,6 +28,11 @@ module Suiminkaizen
 
     PORTRAITS = %i[normal success fail sleep].freeze
 
+    # 乱入してくるクイヤのコマ。tools/prepare_kuiya.rb が切り出したもの。
+    KUIYA_FRAMES = %i[walk1 walk2 walk3 walk4 walk5 walk6
+                      run1 run2 run3 run4
+                      front back idle surprised eat sleep].freeze
+
     module_function
 
     # --- フォント ---------------------------------------------------------
@@ -74,6 +79,17 @@ module Suiminkaizen
 
     # ミニゲームの成績に応じた表情を選ぶ。
     #   A 以上 → success / C 以下 → fail / それ以外 → normal
+    def kuiya(name)
+      @kuiya ||= {}
+      return @kuiya[name] if @kuiya.key?(name)
+
+      @kuiya[name] = ImageSprite.load(File.join(ROOT, "kuiya", "#{name}.png"))
+    end
+
+    def kuiya_available?
+      KUIYA_FRAMES.all? { |name| kuiya(name) }
+    end
+
     def portrait_for_rank(rank)
       case rank
       when "S", "A" then portrait(:success) || portrait(:normal)
