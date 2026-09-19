@@ -6,8 +6,10 @@ module Suiminkaizen
     #
     # A 以上なら得意げな立ち絵、C 以下ならへたりこんだ立ち絵になる。
     class MinigameResult < Scene
-      AUTO_NEXT = 3.2
-      MIN_SHOW  = 0.8
+      # リザルトを見ているあいだは眠気もゲーム内の時計も止まる。
+      # 急がなくていいぶん、最大10秒でひとりでに次へ進む。
+      AUTO_NEXT = 10.0
+      MIN_SHOW  = 0.0
 
       RANK_COLORS = {
         "S" => Palette::YELLOW, "A" => Palette::CYAN, "B" => Palette::GREEN,
@@ -34,15 +36,16 @@ module Suiminkaizen
         state.advance_slot!
       end
 
+      # accumulate_idle を呼ばない ＝ この画面では睡眠ゲージが増えない。
+      # 時計も advance_slot! 済みの位置で止まったままになる。
       def update(dt)
         super
         @camera.update(dt)
-        accumulate_idle(dt)
         continue! if elapsed >= AUTO_NEXT
       end
 
       def button_down(id)
-        continue! if confirm?(id) && elapsed >= MIN_SHOW
+        continue! if confirm?(id)
       end
 
       def draw

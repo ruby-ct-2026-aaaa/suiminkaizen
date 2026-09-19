@@ -2,10 +2,10 @@
 
 module Suiminkaizen
   module Scenes
-    # 1日の締め。6枠ぶんの結果を並べ、これから眠れることを告げる。
+    # 1日の締め。4枠ぶんの結果を並べ、これから眠れることを告げる。
     class DayResult < Scene
-      AUTO_NEXT = 6.0
-      MIN_SHOW  = 0.8
+      AUTO_NEXT = 3.0
+      MIN_SHOW  = 2.6
 
       LABELS = { muscle: "筋トレ", bath: "お風呂", supplement: "サプリ",
                  massage: "マッサージ" }.freeze

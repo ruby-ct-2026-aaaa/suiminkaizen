@@ -6,13 +6,14 @@ module Suiminkaizen
     #
     # ヘッドマッサージ師がいつ乱入してくるかは予定に載らない（？で伏せる）。
     class DayIntro < Scene
-      AUTO_START = 6.0
-      MIN_SHOW   = 0.8
+      AUTO_START = 4.0
+      MIN_SHOW   = 3.6
 
-      LABELS = { muscle: "筋トレ", bath: "お風呂", supplement: "サプリ",
-                 massage: "？？？" }.freeze
-      ICONS  = { muscle: Palette::RED, bath: Palette::CYAN,
-                 supplement: Palette::BLUE, massage: Palette::SLATE }.freeze
+      LABELS = { choice: "選ぶ", muscle: "筋トレ", bath: "お風呂",
+                 supplement: "サプリ", massage: "？？？" }.freeze
+      ICONS  = { choice: Palette::YELLOW, muscle: Palette::RED,
+                 bath: Palette::CYAN, supplement: Palette::BLUE,
+                 massage: Palette::SLATE }.freeze
 
       def initialize(window, state)
         super
@@ -27,7 +28,10 @@ module Suiminkaizen
       end
 
       def button_down(id)
-        start! if confirm?(id) && elapsed >= MIN_SHOW
+        return unless confirm?(id) && elapsed >= MIN_SHOW
+
+        Sound.play(:decide)
+        start!
       end
 
       def draw
@@ -62,6 +66,9 @@ module Suiminkaizen
         return if @moved
 
         @moved = true
+        # ゲーム開幕だけは、まず30分眠ってから1枠目へ。
+        return goto(Sleep.new(window, state, opening: true)) if state.opening?
+
         goto(MinigameIntro.new(window, state, state.current_kind))
       end
 
@@ -102,23 +109,27 @@ module Suiminkaizen
       end
 
       def draw_menu
-        Px.text_shadow(Assets.tiny, "今日の予定", 20, 104, Palette::BONE, 102)
-        Px.text_shadow(Assets.tiny, "各枠で「やる／何もしない」を選べます", 200, 104,
-                       Palette::SLATE, 102, align: :center)
+        Px.text_shadow(Assets.tiny, "今日は #{Config::GAMES_PER_DAY} 枠", 20, 104,
+                       Palette::BONE, 102)
+        Px.text_shadow(Assets.tiny, "各枠で3つの中から選ぶ（何もしないのも可）",
+                       210, 104, Palette::SLATE, 102, align: :center)
         Px.rect(20, 118, Config::W - 40, 1, Palette::SLATE, 102)
 
+        width = (Config::W - 44) / Config::GAMES_PER_DAY
         state.schedule.each_with_index do |kind, i|
-          x = 22 + (i % 3) * 92
-          y = 124 + (i / 3) * 40
-          Px.rect(x, y, 84, 32, Palette.alpha(Palette::DUSK, 225), 102)
-          Px.rect(x, y, 4, 32, ICONS.fetch(kind), 103)
-          Px.text_shadow(Assets.tiny, "#{i + 1}. #{LABELS.fetch(kind)}", x + 9, y + 4,
+          x = 22 + i * width
+          y = 126
+          Px.rect(x, y, width - 6, 34, Palette.alpha(Palette::DUSK, 225), 102)
+          Px.rect(x, y, 3, 34, ICONS.fetch(kind), 103)
+          Px.text_shadow(Assets.tiny, "#{i + 1}. #{LABELS.fetch(kind)}", x + 7, y + 4,
                          kind == :massage ? Palette::SLATE : Palette::WHITE, 103)
           Px.text_shadow(Assets.tiny, Config.format_clock(Config.clock_minutes(i)),
-                         x + 9, y + 18, Palette::CYAN, 103)
-          Px.text_shadow(Assets.tiny, "-#{Config.max_reward(state.day).round}",
-                         x + 78, y + 18, Palette::GREEN, 103, align: :right)
+                         x + 7, y + 20, Palette::CYAN, 103)
         end
+
+        Px.text_shadow(Assets.tiny,
+                       "1枠あたり最大 -#{Config.max_reward(state.day).round}",
+                       Config::W - 22, 166, Palette::GREEN, 103, align: :right)
       end
     end
   end
