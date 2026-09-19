@@ -14,7 +14,10 @@ module Suiminkaizen
       end
 
       def button_down(id)
-        goto(DayIntro.new(window, state)) if confirm?(id)
+        return unless confirm?(id)
+
+        Sound.play(:decide)
+        goto(DifficultySelect.new(window, state))
       end
 
       def draw
@@ -34,9 +37,9 @@ module Suiminkaizen
 
         [
           "睡眠ゲージが 1000 に達したら気絶＝ゲームオーバー。",
-          "1日6枠。筋トレ／お風呂／サプリでゲージを削り、夜に30分眠って30回復。",
-          "各枠は「やる／何もしない」を選べるが、ヘッドマッサージ師の乱入は断れない。",
-          "7日間しのげば勝ち。1日およそ3分。",
+          "1日4枠。筋トレ／お風呂／サプリでゲージを削り、夜に30分眠って30回復。",
+          "各枠は3つの中から選べる（何もしないのも可）が、乱入だけは断れない。",
+          "7日間しのげば勝ち。難易度は5段階から選べます。",
           "ESC ポーズ　　F11 全画面　　ウィンドウは自由に伸縮できます"
         ].each_with_index do |line, i|
           Px.text_shadow(Assets.tiny, line, Config::W / 2, 180 + i * 12,

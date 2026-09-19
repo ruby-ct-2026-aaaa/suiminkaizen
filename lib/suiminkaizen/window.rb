@@ -23,6 +23,7 @@ module Suiminkaizen
       @paused  = false
       @last_ms = Gosu.milliseconds
       Viewport.fit!(self.width, self.height)
+      Sound.play_bgm # メインBGM。ここから最後までループで流しつづける
       reset!
     end
 
@@ -44,11 +45,18 @@ module Suiminkaizen
       @scene.enter
     end
 
+    # 難易度が決まったところで、その設定を持った状態を作り直して始める。
+    def begin_game!(difficulty)
+      @state = GameState.new(difficulty)
+      goto(Scenes::DayIntro.new(self, @state))
+    end
+
     def goto(scene)
       @next_scene = scene
     end
 
     def update
+      Sound.update # 台詞が終わったら BGM の音量を戻す
       Viewport.fit!(width, height)
 
       now = Gosu.milliseconds
