@@ -6,6 +6,30 @@ describe GameState do
   before do
     srand(1234)
     @state = GameState.new
+    # ほとんどのテストは「開幕の30分睡眠が済んだあと」を見ている。
+    @state.finish_opening_sleep!
+  end
+
+  describe "ゲームのはじまり" do
+    it "開幕は 00:00 で、まだ1日ははじまっていない" do
+      fresh = GameState.new
+      _(fresh.opening?).must_equal true
+      _(fresh.clock_text).must_equal "00:00"
+    end
+
+    it "枠を進めても、開幕のあいだ時計は 00:00 のまま" do
+      fresh = GameState.new
+      fresh.advance_slot!
+      fresh.slot_fraction = 0.5
+      _(fresh.clock_text).must_equal "00:00"
+    end
+
+    it "30分眠り終えると 00:30 になり、そこから1日がはじまる" do
+      fresh = GameState.new
+      fresh.finish_opening_sleep!
+      _(fresh.opening?).must_equal false
+      _(fresh.clock_text).must_equal "00:30"
+    end
   end
 
   it "DAY 1 のゲージ 0 からはじまる" do
@@ -15,11 +39,12 @@ describe GameState do
   end
 
   describe "1日の予定" do
-    it "6枠ある" do
+    it "4枠ある＝ミニゲームは1日に4回" do
       _(@state.schedule.size).must_equal Config::GAMES_PER_DAY
+      _(Config::GAMES_PER_DAY).must_equal 4
     end
 
-    it "ヘッドマッサージ師がちょうど2回、2枠目以降に乱入する" do
+    it "ヘッドマッサージ師が2枠目以降に乱入する" do
       20.times do
         schedule = GameState.new.schedule
         _(schedule.count(:massage)).must_equal Config::MASSAGE_PER_DAY
@@ -27,24 +52,16 @@ describe GameState do
       end
     end
 
-    it "残りの枠は筋トレ・お風呂・サプリで埋まる" do
-      base = @state.schedule.reject { |kind| kind == :massage }
-      _(base.size).must_equal Config::GAMES_PER_DAY - Config::MASSAGE_PER_DAY
-      base.each { |kind| _(Minigames::BASE_KINDS).must_include kind }
+    it "乱入以外の枠は、その場で選ぶ枠になっている" do
+      free = @state.schedule.reject { |kind| kind == :massage }
+      _(free.size).must_equal Config::GAMES_PER_DAY - Config::MASSAGE_PER_DAY
+      free.each { |kind| _(kind).must_equal :choice }
     end
 
-    it "同じ種目が続けて並ばない" do
-      20.times do
-        base = GameState.new.schedule.reject { |kind| kind == :massage }
-        _(base.each_cons(2).any? { |a, b| a == b }).must_equal false
-      end
-    end
-
-    it "その日の最後の自前の種目は夜のお風呂になる" do
-      20.times do
-        base = GameState.new.schedule.reject { |kind| kind == :massage }
-        _(base.last).must_equal :bath
-      end
+    it "選ぶ枠では3つの選択肢から選べる" do
+      _(Minigames::BASE_KINDS.size).must_equal 3
+      _(Scenes::MinigameIntro.new(nil, @state, :choice).kind)
+        .must_be_kind_of Symbol
     end
   end
 
@@ -56,17 +73,23 @@ describe GameState do
     it "枠が進むと時計も進む" do
       @state.advance_slot!
       @state.advance_slot!
-      _(@state.clock_text).must_equal "08:20"
+      _(@state.clock_text).must_equal "12:15"
     end
 
     it "枠の途中でも針が進む" do
       @state.slot_fraction = 0.5
-      _(@state.clock_text).must_equal "02:28"
+      _(@state.clock_text).must_equal "03:26"
     end
 
-    it "6枠すべて終えると 00:00 になる" do
+    it "4枠すべて終えると 00:00 になる" do
       Config::GAMES_PER_DAY.times { @state.advance_slot! }
       _(@state.clock_text).must_equal "00:00"
+    end
+
+    it "就寝の時計は 0時ちょうどから動きだす" do
+      Config::GAMES_PER_DAY.times { @state.advance_slot! }
+      _(@state.sleep_clock_text(0.0)).must_equal "00:00"
+      _(@state.sleep_clock_text(0.5)).must_equal "00:15"
     end
 
     it "就寝は 00:00 からで、30分眠ると 00:30 ＝ 翌日の始まりに戻る" do
@@ -77,7 +100,7 @@ describe GameState do
   end
 
   describe "1日の進行" do
-    it "6枠こなすと1日が終わる" do
+    it "4枠こなすと1日が終わる" do
       (Config::GAMES_PER_DAY - 1).times do
         @state.advance_slot!
         _(@state.day_finished?).must_equal false

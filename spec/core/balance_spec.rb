@@ -24,61 +24,99 @@ describe "ゲームバランス" do
     end
   end
 
-  # 1日 = 6枠 + 朝夕の演出。説明を最後まで読んでおよそ3分に収まってほしい。
-  it "1日はおよそ3分で終わる" do
+  # ミニゲームそのものの時間は固定。ここだけは動かさない。
+  it "1日のミニゲームは4本 x 15秒 ＝ 1分ちょうど" do
+    _(Config::MINIGAME_SECONDS).must_equal 15.0
+    _(Config::GAMES_PER_DAY * Config::MINIGAME_SECONDS).must_equal 60.0
+  end
+
+  # 選択とリザルトはどちらも「最大10秒」で、押せばすぐ進む。
+  # そのぶん1日の長さは、プレイヤーの決断の早さで変わる。
+  it "1日は、即決なら約70秒・迷いきると150秒" do
     minigames = Config::GAMES_PER_DAY * Config::MINIGAME_SECONDS
-    between   = Config::GAMES_PER_DAY *
+    dithering = Config::GAMES_PER_DAY *
                 (Scenes::MinigameIntro::READ_TIME + Scenes::MinigameResult::AUTO_NEXT)
-    ceremony  = Scenes::DayIntro::AUTO_START + Scenes::DayResult::MIN_SHOW +
+    ceremony  = Scenes::DayIntro::AUTO_START + Scenes::DayResult::AUTO_NEXT +
                 Scenes::Sleep::TOTAL
-    total = minigames + between + ceremony
 
-    _(total).must_be :>, 2.6 * 60
-    _(total).must_be :<, 3.4 * 60
+    quickest = minigames + ceremony
+    slowest  = minigames + dithering + ceremony
+
+    _(quickest).must_be_close_to 70.0, 2.0
+    _(slowest).must_be_close_to 150.0, 2.0
   end
 
-  # 説明を飛ばすか読むかで所要時間は変わる。その幅ごと 20 分前後に収める。
-  it "7日クリアは、飛ばしても読んでも20分前後になる" do
+  it "7日クリアは、即決で約8分・迷いきって約17分半" do
     minigames = Config::GAMES_PER_DAY * Config::MINIGAME_SECONDS
-    skimming  = Config::GAMES_PER_DAY *
-                (Scenes::MinigameIntro::MIN_READ + Scenes::MinigameResult::MIN_SHOW)
-    reading   = Config::GAMES_PER_DAY *
+    dithering = Config::GAMES_PER_DAY *
                 (Scenes::MinigameIntro::READ_TIME + Scenes::MinigameResult::AUTO_NEXT)
+    ceremony  = Scenes::DayIntro::AUTO_START + Scenes::DayResult::AUTO_NEXT +
+                Scenes::Sleep::TOTAL
 
-    fastest = (minigames + skimming + 12.0) * Config::TOTAL_DAYS / 60.0
-    slowest = (minigames + reading + 12.0) * Config::TOTAL_DAYS / 60.0
+    quickest = (minigames + ceremony) * Config::TOTAL_DAYS / 60.0
+    slowest  = (minigames + dithering + ceremony) * Config::TOTAL_DAYS / 60.0
 
-    _(fastest).must_be :>, 15.0
-    _(slowest).must_be :<, 25.0
+    _(quickest).must_be_close_to 8.2, 0.4
+    _(slowest).must_be_close_to 17.5, 0.5
   end
 
-  it "説明画面は6秒ある" do
-    _(Scenes::MinigameIntro::READ_TIME).must_equal 6.0
+  it "選択画面は10秒あり、3つの選択肢が出る" do
+    _(Scenes::MinigameIntro::READ_TIME).must_equal 10.0
+    _(Minigames::BASE_KINDS.size).must_equal 3
   end
+
+  # 画面が切り替わった瞬間の SPACE も拾えるよう、待ち時間はゼロにしてある。
+  it "選択画面もリザルト画面も、最初のフレームから入力を受け付ける" do
+    _(Scenes::MinigameIntro::MIN_READ).must_equal 0.0
+    _(Scenes::MinigameResult::MIN_SHOW).must_equal 0.0
+  end
+
+  it "リザルト画面は最大10秒で、放っておけば次へ進む" do
+    _(Scenes::MinigameResult::AUTO_NEXT).must_equal 10.0
+  end
+
+  it "1日目の眠気はちょうど 10/秒" do
+    _(Config.drowsiness_rate(1)).must_equal 10.0
+  end
+
+  # 眠気が進む画面の秒数。
+  # 種目の選択画面もリザルト画面も時計ごと止まっているので、数に入らない。
+  # 残るのは朝の導入4秒と夜の集計3秒だけ。
+  IDLE_QUICK = Scenes::DayIntro::AUTO_START + Scenes::DayResult::AUTO_NEXT
 
   # 1日ぶんに自然に溜まる眠気（ミニゲーム中＋その合間）。
-  def passive_gain(day)
+  def passive_gain(day, idle = IDLE_QUICK)
     Config.drowsiness_rate(day) * Config::GAMES_PER_DAY * Config::MINIGAME_SECONDS +
-      Config.idle_rate(day) * 42.0
+      Config.idle_rate(day) * idle
   end
 
   # ミスの量ごとに、収支が釣り合う達成率。
-  def break_even(day, penalty)
-    (passive_gain(day) + penalty - Config::SLEEP_RECOVERY) /
+  def break_even(day, penalty, idle = IDLE_QUICK)
+    (passive_gain(day, idle) + penalty - Config::SLEEP_RECOVERY) /
       (Config.max_reward(day) * Config::GAMES_PER_DAY)
   end
 
-  # 設計の要。眠気の進みを3倍にしたぶん、要求される達成率も高い。
-  it "ミスさえなければ達成率75%前後で踏みとどまれる" do
+  # 設計の要。1枠の削減上限（max_reward）を動かすと、ここが真っ先に動く。
+  it "等倍（難易度の基準）ではミスなしの達成率50%前後で踏みとどまれる" do
     DAYS.each do |day|
-      _(break_even(day, 0.0)).must_be_close_to 0.75, 0.10,
+      _(break_even(day, 0.0)).must_be_close_to 0.51, 0.06,
                                               "DAY#{day} の損益分岐が想定とずれている"
     end
   end
 
-  it "1日に200ぶんのミスを出すと達成率はほぼ満点が要る" do
+  # 選択画面は時計ごと止まるので、迷っても眠気は増えない。
+  it "選択画面で迷っても、要求される達成率は変わらない" do
+    dithering = IDLE_QUICK + Config::GAMES_PER_DAY * Scenes::MinigameIntro::READ_TIME
     DAYS.each do |day|
-      _(break_even(day, 200.0)).must_be :>, 0.80,
+      _(break_even(day, 0.0, IDLE_QUICK))
+        .must_be_close_to break_even(day, 0.0, IDLE_QUICK), 0.0001
+      _(dithering).must_be :>, IDLE_QUICK # 実時間は延びるが、眠気は進まない
+    end
+  end
+
+  it "1日に200ぶんのミスを出すと要求される達成率がはっきり上がる" do
+    DAYS.each do |day|
+      _(break_even(day, 200.0)).must_be :>, break_even(day, 0.0) + 0.06,
                                         "DAY#{day} でミスが軽すぎる"
     end
   end
@@ -115,8 +153,48 @@ describe "ゲームバランス" do
     _(total).must_be :>, Config::MAX_GAUGE
   end
 
+  describe "難易度" do
+    it "赤ちゃんからプロまで5段階ある" do
+      _(Config::DIFFICULTIES.map { |d| d[:label] })
+        .must_equal %w[赤ちゃん 初心者 普通 上級者 プロ]
+    end
+
+    it "下から順に眠気が速くなる" do
+      scales = Config::DIFFICULTIES.map { |d| d[:scale] }
+      _(scales).must_equal scales.sort
+      _(scales.uniq.size).must_equal scales.size
+    end
+
+    it "既定は普通" do
+      _(Config.default_difficulty[:key]).must_equal :normal
+    end
+
+    # これまで遊んでいた等倍（10/秒）は「初心者と普通のあいだ」だった、
+    # という手応えをそのまま刻みにしてある。
+    it "等倍は初心者と普通のちょうどあいだにある" do
+      rookie = Config::DIFFICULTIES[1][:scale]
+      normal = Config::DIFFICULTIES[2][:scale]
+      _(rookie).must_be :<, 1.0
+      _(normal).must_be :>, 1.0
+      _((rookie + normal) / 2.0).must_be_close_to 1.0, 0.05
+    end
+
+    it "選んだ難易度のぶんだけ、眠気の進みが変わる" do
+      Config::DIFFICULTIES.each do |entry|
+        state = GameState.new(entry)
+        _(state.drowsiness_rate)
+          .must_be_close_to Config.drowsiness_rate(1) * entry[:scale], 0.001
+        _(state.idle_rate).must_be :<, state.drowsiness_rate
+      end
+    end
+
+    it "難易度を指定しなければ普通ではじまる" do
+      _(GameState.new.difficulty_label).must_equal "普通"
+    end
+  end
+
   describe "ミニゲーム" do
-    it "4種類あり、うち3種類は自分で選べる" do
+    it "4種類あり、うち3種類は選択肢として毎回出てくる" do
       _(Minigames::ALL_KINDS.sort).must_equal %i[bath massage muscle supplement]
       _(Minigames::BASE_KINDS.sort).must_equal %i[bath muscle supplement]
       _(Minigames::ALL_KINDS - Minigames::BASE_KINDS).must_equal [:massage]

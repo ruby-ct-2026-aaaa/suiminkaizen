@@ -19,9 +19,13 @@ module Suiminkaizen
   class GameState
     # 進行中の枠の進み具合（0.0〜1.0）。24時間時計の針を進めるのに使う。
     attr_accessor :slot_fraction
-    attr_reader :day, :gauge, :schedule, :slot, :day_results, :days, :blink
+    attr_reader :day, :gauge, :schedule, :slot, :day_results, :days, :blink,
+                :difficulty
 
-    def initialize
+    def initialize(difficulty = Config.default_difficulty)
+      @difficulty = difficulty
+      # ゲームは 00:00 から。まず30分だけ眠って、00:30 に1日がはじまる。
+      @opening = true
       @gauge = SleepGauge.new
       @day   = 1
       @days  = []
@@ -31,9 +35,39 @@ module Suiminkaizen
       start_day!
     end
 
+    # --- 眠気の進む速さ ---------------------------------------------------
+    # 選んだ難易度のぶんだけ、そのまま倍率がかかる。
+
+    def difficulty_scale
+      @difficulty.fetch(:scale)
+    end
+
+    def difficulty_label
+      @difficulty.fetch(:label)
+    end
+
+    # 乱入してきたクイヤたち。居座られているあいだ眠気が速くなる。
+    def kuiya
+      @kuiya ||= Kuiya::Swarm.new
+    end
+
+    # この難易度で同時に湧く上限。0 なら出てこない。
+    def kuiya_limit
+      @difficulty.fetch(:kuiya, 0)
+    end
+
+    def drowsiness_rate
+      Config.drowsiness_rate(@day) * difficulty_scale * kuiya.drowsiness_multiplier
+    end
+
+    def idle_rate
+      Config.idle_rate(@day) * difficulty_scale * kuiya.drowsiness_multiplier
+    end
+
     # --- 1日の進行 --------------------------------------------------------
 
     def start_day!
+      kuiya.clear!
       @slot = 0
       @slot_fraction = 0.0
       @schedule = build_schedule
@@ -95,10 +129,19 @@ module Suiminkaizen
     end
 
     # --- 24時間時計 -------------------------------------------------------
-    # 1日は 00:30 に始まり、6枠を消化して 00:00 に終わる。
+    # 1日は 00:30 に始まり、4枠を消化して 00:00 に終わる。
     # 枠が進むほど時計も進むので、「やらない」を選ぶと時間だけが飛んでいく。
 
+    # 開幕の30分睡眠がまだのあいだ。時計は 00:00 で止まっている。
+    def opening? = @opening
+
+    def finish_opening_sleep!
+      @opening = false
+    end
+
     def clock_minutes
+      return 0.0 if @opening
+
       progress = @slot + (@slot_fraction || 0.0)
       progress = Config::GAMES_PER_DAY if progress > Config::GAMES_PER_DAY
       Config.clock_minutes(progress)
@@ -172,28 +215,15 @@ module Suiminkaizen
 
     private
 
-    # 1日は6枠。うち2枠はヘッドマッサージ師の乱入で、位置はその日ごとに変わる。
-    # 残りの4枠が筋トレ／お風呂／サプリメントで、同じ種目は連続しない。
+    # 1日は4枠。うち1枠はヘッドマッサージ師の乱入で、位置はその日ごとに変わる。
+    # 残りの枠は :choice ＝ その場で3つの選択肢から自分で種目を選ぶ枠。
     def build_schedule
-      slots = Array.new(Config::GAMES_PER_DAY)
+      slots = Array.new(Config::GAMES_PER_DAY, :choice)
 
       # 初手からの乱入は避ける。2枠目以降に不意に割り込んでくる。
       (1...Config::GAMES_PER_DAY).to_a.sample(Config::MASSAGE_PER_DAY)
                                  .each { |i| slots[i] = :massage }
-
-      open = slots.each_index.reject { |i| slots[i] }
-      base_sequence(open.size).each_with_index { |kind, i| slots[open[i]] = kind }
       slots
-    end
-
-    # 締めが「夜のお風呂」になるよう、お風呂から逆向きに組み立てる。
-    # 直前と違う種目を選び続けるので、同じ種目は決して連続しない。
-    def base_sequence(count)
-      return [] if count <= 0
-
-      list = [:bath]
-      (count - 1).times { list << (Minigames::BASE_KINDS - [list.last]).sample }
-      list.reverse
     end
   end
 end
