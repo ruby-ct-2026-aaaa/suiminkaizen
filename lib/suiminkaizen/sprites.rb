@@ -56,6 +56,46 @@ module Suiminkaizen
       "..kkkkk..kkkkk.."
     ], BASE.merge("a" => Palette::CYAN))
 
+    # ヘッドマッサージ師（16x20）。
+    # 峰小輔の頭より高い位置に立っていて、肩から上だけが見える。
+    # 白衣(g)と、その影(G)。目は白目(w)に黒目(k)を落としてある。
+    MASSEUR = PixelSprite.new([
+      "....hhhhhhhh....",
+      "..hhhhhhhhhhhh..",
+      ".hhhhhhhhhhhhhh.",
+      ".hhhhhhhhhhhhhh.",
+      ".hhssssssssssHh.",
+      ".hssssssssssssh.",
+      ".hsswksssskwssh.",
+      ".hssssssssssssh.",
+      ".hsssssSSsssssh.",
+      ".hssssskksssssh.",
+      "..hssssssssssh..",
+      "....SSSSSSSS....",
+      "..GgggggggggG...",
+      ".GggggggggggggG.",
+      "GgggggggggggggGG",
+      "GggggGGwwGGgggGG",
+      "GgggggGwwGggggGG",
+      "GggggggwwGgggggG",
+      "GgggggggggggggGG",
+      "GGggggggggggggGG",
+      "GGggggggggggggGG"
+    ], BASE.merge("g" => Palette.rgb(0xe8dfef),
+                  "G" => Palette.rgb(0xb3a6c4)))
+
+    # マッサージ師の手（8x8）。指を広げて頭を揉む形。
+    HAND = PixelSprite.new([
+      "..SsssS.",
+      ".Ssssss.",
+      "SssssssS",
+      "SssssssS",
+      "SssssssS",
+      ".SsssssS",
+      ".Ss.ss.S",
+      "..S..S.."
+    ], BASE)
+
     # 湯船につかった峰小輔（16x12）。
     # 目を閉じて、危険なほどリラックスしている。
     KOSUKE_BATH = PixelSprite.new([

@@ -22,6 +22,11 @@ describe PixelSprite do
   end
 
   it "大きさを読み取れる" do
+    # マッサージ師と手も、峰小輔と同じドット絵の作りで持っている。
+    _(Sprites::MASSEUR.width).must_equal 16
+    _(Sprites::MASSEUR.height).must_be :>, 16
+    _(Sprites::HAND.width).must_equal 8
+
     _(Sprites::KOSUKE.width).must_equal 16
     _(Sprites::KOSUKE.height).must_equal 24
   end
