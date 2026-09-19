@@ -28,6 +28,11 @@ module Suiminkaizen
     #   削減量 = その日の上限 x 達成率
     # で睡眠ゲージの削減量が決まる。スコアはレベル（種目内の難易度）と
     # コンボで増えるので、"成功難易度に応じて削減量が可変" になる。
+    #
+    # 削減は終了時にまとめてではなく、得点が入ったその瞬間に反映する。
+    # 稼いだぶんの合計（settle_reward! が払った総額）を @paid に持っておき、
+    # 達成率から求めた「あるべき削減量」との差だけを、その都度ゲージから引く。
+    # プレイヤーから見ると、成功するたびに数値がその場で減っていく。
     class Base < Scene
       RANKS = [[1.10, "S"], [0.92, "A"], [0.75, "B"], [0.50, "C"]].freeze
       MAX_LEVEL = 8
@@ -54,6 +59,7 @@ module Suiminkaizen
         @combo         = 0
         @max_combo     = 0
         @penalty_total = 0.0
+        @paid          = 0.0
         @popups        = []
         @flash         = 0.0
         @finished      = false
@@ -77,7 +83,8 @@ module Suiminkaizen
         @flash = 0.0 if @flash.negative?
 
         @time_left -= dt
-        state.gauge.add(Config.drowsiness_rate(state.day) * dt)
+        state.kuiya.update(dt, state) # 乱入してくる／居座る／逃げていく
+        state.gauge.add(state.drowsiness_rate * dt)
         # 24時間時計の針は、この枠の進み具合に合わせて進む。
         state.slot_fraction = 1.0 - @time_left / Config::MINIGAME_SECONDS
 
@@ -99,8 +106,10 @@ module Suiminkaizen
         performance = Config::MAX_PERFORMANCE if performance > Config::MAX_PERFORMANCE
         performance = 0.0 if performance.negative?
 
-        reward = Config.max_reward(state.day) * performance
-        state.gauge.reduce(reward)
+        # 削減はすでに得点のたびに済んでいる。ここでは端数を払い切るだけ。
+        settle_reward!
+        state.kuiya.clear! # この枠の乱入はここまで
+        reward = @paid
 
         result = Result.new(kind: self.class.kind, title: self.class.title,
                             score: @score, target: @target_score,
@@ -118,16 +127,32 @@ module Suiminkaizen
 
       # --- スコア操作 -----------------------------------------------------
 
+      # いまの達成率に見合うところまで、睡眠ゲージをその場で削る。
+      # スコアは減らないので、払う額が戻ることはない。
+      def settle_reward!
+        owed = Config.max_reward(state.day) * performance - @paid
+        return if owed <= 0.0
+
+        state.gauge.reduce(owed)
+        @paid += owed
+      end
+
+      # これまでに削った合計。リザルトに出る「削減量」と同じ数字。
+      def paid_reward = @paid
+
       # 成功。レベル（難易度）とコンボが高いほど1回の価値が上がる。
       def succeed(points, text = nil, color = Palette::YELLOW, x = Config::W / 2, y = 132)
         @combo += 1
         @max_combo = @combo if @combo > @max_combo
         @score += points * level_bonus * combo_bonus
+        settle_reward!
         popup(text, color, x, y) if text
       end
 
       # 失敗。スコアが伸びないだけでなく、その場で眠気が増える。
+      # ミスの音は4種目に共通なので、ここでまとめて鳴らす。
       def blunder(gauge_penalty, text, x = Config::W / 2, y = 132)
+        Sound.play(:miss)
         state.gauge.add(gauge_penalty)
         @penalty_total += gauge_penalty
         @combo = 0
@@ -139,6 +164,7 @@ module Suiminkaizen
       # 時間で伸びるタイプの加点（お風呂用）。コンボは動かさない。
       def gain(points)
         @score += points * level_bonus
+        settle_reward!
       end
 
       # じわじわ増える眠気（湯冷め・のぼせなど）。演出を伴わない失点。
@@ -168,10 +194,6 @@ module Suiminkaizen
         [@score / @target_score, Config::MAX_PERFORMANCE].min
       end
 
-      def reward_preview
-        Config.max_reward(state.day) * performance
-      end
-
       # --- 演出 -----------------------------------------------------------
 
       def popup(text, color, x, y)
@@ -193,9 +215,15 @@ module Suiminkaizen
         end
       end
 
+      # 「9」でクイヤを追い払う。各ミニゲームの button_down から super で呼ばれる。
+      def button_down(id)
+        state.kuiya.strike!(id)
+      end
+
       def draw
         Stage.draw(@camera, self.class.theme, elapsed)
         scene_draw
+        state.kuiya.draw(@camera)
         draw_popups
         draw_game_hud
         Hud.draw(state, elapsed)
@@ -242,7 +270,7 @@ module Suiminkaizen
         Px.rect(bar_x, 230, (bar_w * ratio).round, 5, Palette::GREEN, Hud::Z_HUD + 2)
         goal = (bar_w / Config::MAX_PERFORMANCE).round
         Px.rect(bar_x + goal, 229, 1, 7, Palette::WHITE, Hud::Z_HUD + 3)
-        Px.text_shadow(Assets.tiny, "削減 #{reward_preview.round}", Config::W / 2, 217,
+        Px.text_shadow(Assets.tiny, "削減 #{@paid.round}", Config::W / 2, 217,
                        Palette::GREEN, Hud::Z_HUD + 2, align: :center)
       end
 

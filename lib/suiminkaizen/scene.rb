@@ -29,7 +29,7 @@ module Suiminkaizen
     # ミニゲームの合間も、峰小輔は少しずつ眠くなっていく。
     # ここで気絶したら即ゲームオーバー。
     def accumulate_idle(dt)
-      state.gauge.add(Config.idle_rate(state.day) * dt)
+      state.gauge.add(state.idle_rate * dt)
       goto(Scenes::GameOver.new(window, state)) if state.gauge.fainted?
     end
 
