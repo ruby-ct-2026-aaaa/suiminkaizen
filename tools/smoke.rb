@@ -8,7 +8,7 @@
 # 腕前の違う4人で通しプレイして、
 #   - 例外が出ないこと（描画の座標や色が壊れていればスタブが落ちる）
 #   - 7日間クリアと気絶の両方に到達できること
-#   - 1日あたりの所要時間がおよそ5分に収まること
+#   - 1日あたりの所要時間がおよそ1分半（7日で10分半）に収まること
 # を確かめる。バランス調整の数字もここで眺められる。
 
 $LOAD_PATH.unshift(File.expand_path("stub", __dir__))
@@ -27,16 +27,25 @@ class Player
     @accuracy = accuracy
   end
 
-  # 押しっぱなしのキー（お風呂の温度調整）
+  # 押しっぱなしのキー（お風呂の湯温と湯量）
   def held(scene)
     return [] unless scene.is_a?(Minigames::Bath)
     # 下手な人ほど反応が鈍く、修正が後手に回る。
     return [] if rand > @accuracy * 0.85 + 0.15
 
-    diff = scene.instance_variable_get(:@target) - scene.instance_variable_get(:@temp)
-    return [] if diff.abs < scene.band_half * 0.3
+    keys = []
 
-    [diff.positive? ? Gosu::KB_UP : Gosu::KB_DOWN]
+    diff = scene.instance_variable_get(:@target) - scene.instance_variable_get(:@temp)
+    keys << (diff.positive? ? Gosu::KB_UP : Gosu::KB_DOWN) if diff.abs >= scene.band_half * 0.3
+
+    # 湯量も同時に見る。↓（うめる）や→（足し湯）は互いに干渉するので、
+    # 直そうとするほどもう片方がずれる。
+    wdiff = scene.water_target - scene.water
+    if wdiff.abs >= scene.water_half * 0.5
+      keys << (wdiff.positive? ? Gosu::KB_RIGHT : Gosu::KB_LEFT)
+    end
+
+    keys
   end
 
   def presses(scene)
@@ -53,12 +62,32 @@ class Player
 
   private
 
+  # 筋トレは「軸を戻す」「呼吸を続ける」「タイミングで上げる」の3つを同時にさばく。
   def muscle(scene)
+    keys = []
+
+    balance = scene.balance
+    if balance.abs > 0.2 && rand < @accuracy * 0.5
+      keys << (balance.positive? ? Gosu::KB_LEFT : Gosu::KB_RIGHT)
+    end
+
+    if scene.breath < 0.78 && rand < @accuracy * 0.35
+      keys << (scene.last_breath == :in ? Gosu::KB_DOWN : Gosu::KB_UP)
+    end
+
+    keys.concat(muscle_rep(scene))
+    keys
+  end
+
+  def muscle_rep(scene)
     cursor  = scene.instance_variable_get(:@cursor)
     center  = scene.instance_variable_get(:@zone_center)
     half    = scene.instance_variable_get(:@zone_half)
     perfect = scene.instance_variable_get(:@perfect_half)
     distance = (cursor - center).abs
+
+    # 軸がぶれているうちは、上手い人ほど上げるのを我慢する。
+    return [] if scene.balance.abs > Minigames::Muscle::TILT_LIMIT && rand < @accuracy
 
     return rand < @accuracy ? [Gosu::KB_SPACE] : [] if distance <= perfect * 0.75
 
@@ -74,30 +103,36 @@ class Player
     rand < @accuracy * 0.06 ? [Gosu::KB_SPACE] : []
   end
 
-  # ヘッドマッサージは反応勝負。腕前が低いほど反応が遅れ、押し間違える。
+  # ヘッドマッサージは反応勝負。手順が伸びるほど、途中で間違える機会も増える。
   def massage(scene)
-    prompt = scene.instance_variable_get(:@prompt)
+    prompt = scene.prompt
     return [] unless prompt
     return [] if rand > @accuracy
 
+    expected = prompt[:keys][prompt[:index]]
     correct = rand < @accuracy
-    [correct ? prompt[:key] : Minigames::HeadMassage::KEYS.keys.sample]
+    [correct ? expected : Minigames::HeadMassage::KEYS.keys.sample]
   end
 
   def supplement(scene)
+    # 飲んだ直後は水で流し込むのが最優先。
+    return [Gosu::KB_UP] if scene.chase && rand < @accuracy
+
     pills = scene.instance_variable_get(:@pills)
     lane  = scene.instance_variable_get(:@lane)
 
-    candidates = pills.select { |p| p[:z] > 1.0 && p[:z] < 6.5 }
-    # 見分けがつくかどうかも腕前しだい。
-    candidates = candidates.select { |p| p[:type][:good] } if rand < @accuracy
-    target = candidates.min_by { |p| p[:z] }
+    target = pills.select { |p| p[:z] > 1.0 && p[:z] < 6.5 }.min_by { |p| p[:z] }
     return [] unless target
 
     return [target[:lane] > lane ? Gosu::KB_RIGHT : Gosu::KB_LEFT] if target[:lane] != lane
 
     window = 0.12 + (1.0 - @accuracy) * 1.6
-    (target[:z] - Minigames::Supplement::CATCH_BEST).abs <= window ? [Gosu::KB_SPACE] : []
+    return [] if (target[:z] - Minigames::Supplement::CATCH_BEST).abs > window
+
+    # 寒色は SPACE で飲み、暖色は ↓ で払う。見分けがつくかは腕前しだい。
+    good = target[:type][:good]
+    good = !good if rand > @accuracy
+    [good ? Gosu::KB_SPACE : Gosu::KB_DOWN]
   end
 end
 
@@ -112,12 +147,14 @@ def terminal?(scene)
   scene.is_a?(Scenes::GameOver) || scene.is_a?(Scenes::Ending)
 end
 
-def play(label, player, seed)
+def play(label, player, seed, difficulty = Config::DEFAULT_DIFFICULTY)
   srand(seed)
   Gosu.fake_ms = 0
   Gosu.draw_calls = 0
 
   window = Window.new
+  # タイトルと難易度選択は飛ばして、指定の難易度で直接はじめる。
+  window.begin_game!(Config.difficulty_at(difficulty))
   transitions = []
   last_class = nil
   frames = 0
@@ -161,13 +198,25 @@ def report_by_kind(window)
   end
 end
 
-puts "=== 通しプレイ ==="
+puts "=== 通しプレイ（難易度：普通）==="
 runs = {
   "達人 (0.95)"  => play("達人 (0.95)", Player.new(0.95), 1),
   "中級 (0.72)"  => play("中級 (0.72)", Player.new(0.72), 2),
   "初心者 (0.45)" => play("初心者 (0.45)", Player.new(0.45), 3),
   "無操作"        => play("無操作", IdlePlayer.new, 4)
 }
+
+puts
+puts "=== 難易度ごとの手応え（腕前 0.72 で固定）==="
+Config::DIFFICULTIES.each_with_index do |entry, i|
+  play(format("%-8s x%.2f", entry[:label], entry[:scale]), Player.new(0.72), 2, i)
+end
+
+puts
+puts "=== 難易度ごとの手応え（腕前 0.95 で固定）==="
+Config::DIFFICULTIES.each_with_index do |entry, i|
+  play(format("%-8s x%.2f", entry[:label], entry[:scale]), Player.new(0.95), 1, i)
+end
 
 runs.each do |label, run|
   puts

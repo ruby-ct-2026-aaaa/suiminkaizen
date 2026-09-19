@@ -16,6 +16,9 @@ module Suiminkaizen
   class ShotWindow < Window
     PLAN = [
       ["01_title",       20, 0,   ->(_w) {}],
+      ["01b_difficulty", 20, 0,   lambda { |w|
+        w.goto(Scenes::DifficultySelect.new(w, w.state))
+      }],
       ["02_day_intro",   20, 0,   ->(w) { w.goto(Scenes::DayIntro.new(w, w.state)) }],
       ["03_intro",       40, 120, lambda { |w|
         w.goto(Scenes::MinigameIntro.new(w, w.state, :supplement))

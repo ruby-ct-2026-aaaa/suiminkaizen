@@ -124,8 +124,29 @@ portraits.each do |path|
   count += 1
 end
 
+# 乱入してくるクイヤのコマ。切り出し済みの PNG だけを持っていく
+# （元のシート sheet.jpg は開発用なので同梱しない）。
+kuiya = Dir.glob(File.join(PROJECT, "assets", "kuiya", "*.png"))
+FileUtils.mkdir_p(File.join(game, "assets", "kuiya"))
+kuiya.each do |path|
+  FileUtils.cp(path, File.join(game, "assets", "kuiya"))
+  bytes += File.size(path)
+  count += 1
+end
+
+# BGM と効果音。これが無いと無音になるだけで、ゲーム自体は動く。
+sounds = Dir.glob(File.join(PROJECT, "assets", "sound", "*")).select { |f| File.file?(f) }
+FileUtils.mkdir_p(File.join(game, "assets", "sound"))
+sounds.each do |path|
+  FileUtils.cp(path, File.join(game, "assets", "sound"))
+  bytes += File.size(path)
+  count += 1
+end
+
 total += bytes
 puts format("  game/      %5d ファイル  %s", count + 1, mb(bytes))
+puts format("  音声       %5d ファイル", sounds.size)
+puts format("  クイヤ     %5d コマ", kuiya.size)
 
 # gosu の隣と ruby/bin の両方へ置いておく（どちらから探されても拾えるように）
 gosu_lib64 = Dir.glob(File.join(PKG, "ruby/lib/ruby/gems/*/gems/gosu-*/lib64")).first
@@ -253,6 +274,21 @@ missing = %w[normal success fail sleep].reject do |name|
 end
 abort "立ち絵が足りない: #{missing.join(', ')}" unless missing.empty?
 puts "  立ち絵 4 種をすべて同梱しました"
+
+# 音が欠けていても起動はするが、無音になってしまう。ここでも検算しておく。
+require_relative "../lib/suiminkaizen/sound"
+wanted = [Suiminkaizen::Sound::BGM] + Suiminkaizen::Sound::EFFECTS.values
+lost = wanted.reject { |file| File.exist?(File.join(game, "assets", "sound", file)) }
+abort "音声が足りない: #{lost.join(', ')}" unless lost.empty?
+puts "  BGM と効果音 #{wanted.size} 本をすべて同梱しました"
+
+# クイヤのコマが欠けると、乱入してきても姿が見えなくなる。
+require_relative "../lib/suiminkaizen/assets"
+short = Suiminkaizen::Assets::KUIYA_FRAMES.reject do |name|
+  File.exist?(File.join(game, "assets", "kuiya", "#{name}.png"))
+end
+abort "クイヤのコマが足りない: #{short.join(', ')}" unless short.empty?
+puts "  クイヤ #{Suiminkaizen::Assets::KUIYA_FRAMES.size} コマをすべて同梱しました"
 
 puts
 puts "完成: #{PKG}"
