@@ -17,6 +17,8 @@ module Gosu
   KB_T = 23
   KB_W = 26
   KB_X = 27
+  KB_9 = 38
+  KB_NUMPAD_9 = 97
   KB_RETURN = 40
   KB_ESCAPE = 41
   KB_SPACE = 44
@@ -135,6 +137,46 @@ module Gosu
     end
   end
 
+  # 音は鳴らさない。どのファイルが何回鳴らされたかだけ数えて、
+  # テストから「この場面でこの音が鳴ったか」を確かめられるようにする。
+  class Sample
+    attr_reader :name
+
+    def initialize(path)
+      raise Errno::ENOENT, path unless File.exist?(path)
+
+      @name = File.basename(path)
+    end
+
+    def play(_volume = 1.0, *_rest)
+      Gosu.note_sound!(:sample, @name)
+      self
+    end
+  end
+
+  class Song
+    attr_accessor :volume
+
+    def initialize(path)
+      raise Errno::ENOENT, path unless File.exist?(path)
+
+      @volume  = 1.0
+      @playing = false
+    end
+
+    def play(looping = false)
+      @playing = true
+      Gosu.note_sound!(:song, looping)
+      self
+    end
+
+    def stop
+      @playing = false
+    end
+
+    def playing? = @playing
+  end
+
   class Window
     attr_accessor :caption
     attr_reader :width, :height
@@ -221,6 +263,15 @@ module Gosu
     def draw_line(x1, y1, c1, x2, y2, c2, z = 0, _mode = :default)
       note_draw!
       check_numbers!("draw_line", x1, y1, x2, y2, z)
+    end
+
+    # 鳴らされた音の記録。テストが「鳴ったか」を確かめるのに使う。
+    def sound_log
+      @sound_log ||= []
+    end
+
+    def note_sound!(kind, arg)
+      sound_log << [kind, arg]
     end
   end
 end
